@@ -1,0 +1,41 @@
+_target_: gaze_module.data.combined_datamodule.ConcatenateDataModule
+
+datasets_train:
+  - ${extras.gaze360}
+  - ${extras.gfie}
+  - ${extras.mpsgaze}
+
+datasets_test:
+  - ${extras.gaze360}
+  - ${extras.gfie}
+  - ${extras.mpsgaze}
+
+train_transform:
+  _target_: gaze_module.data.components.transforms.Compose
+  transforms:
+    - _target_: gaze_module.data.components.transforms.BboxReshape
+      square: True
+      ratio: ${extras.bbox_scale_ratio}
+    - _target_: gaze_module.data.components.transforms.BboxRandomJitter
+      jitter_ratio: 0.1
+    - _target_: gaze_module.data.components.transforms.ToImage
+    - _target_: gaze_module.data.components.transforms.CropRandomResize
+      output_size: ${extras.head_resolution}
+    # - _target_: gaze_module.data.components.transforms.HorizontalFlip
+    - _target_: gaze_module.data.components.transforms.ToTensor
+
+test_transform:
+  _target_: gaze_module.data.components.transforms.Compose
+  transforms:
+    - _target_: gaze_module.data.components.transforms.BboxReshape
+      square: True
+      ratio: ${extras.bbox_scale_ratio}
+    - _target_: gaze_module.data.components.transforms.ToImage
+    - _target_: gaze_module.data.components.transforms.Crop
+      output_size: ${extras.head_resolution}
+    - _target_: gaze_module.data.components.transforms.ToTensor
+
+sampling_dataset: mean
+batch_size: 80 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
+num_workers: 2
+data_to_cluster: False

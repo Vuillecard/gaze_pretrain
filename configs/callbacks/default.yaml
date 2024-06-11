@@ -1,7 +1,9 @@
 defaults:
   - model_checkpoint
+  - model_checkpoint_last
   - early_stopping
   - model_summary
+  - lr_monitor
   - rich_progress_bar
   - _self_
 
@@ -13,6 +15,12 @@ model_checkpoint:
   save_last: True
   auto_insert_metric_name: False
 
+
+model_checkpoint_last:
+  dirpath: ${paths.output_dir}/checkpoints
+  save_last: True
+  every_n_epochs: 1
+  
 early_stopping:
   monitor: "val/acc"
   patience: 100

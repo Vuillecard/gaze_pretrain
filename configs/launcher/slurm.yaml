@@ -1,0 +1,21 @@
+# @package _global_
+defaults:
+  - override /hydra/launcher: submitit_slurm
+  - _self_
+
+# output directory, generated dynamically on each run
+hydra:
+  launcher:
+    gpus_per_node: ${trainer.devices}
+    tasks_per_node: ${trainer.devices}
+    nodes: 1
+    cpus_per_task: ${data.num_workers}
+    account: epartners4all
+    partition: gpu
+    timeout_min: 479
+    mem_gb: 60
+    constraint: 'rtx3090&amd'
+    name: ${task_name}
+    setup:
+      - source /idiap/temp/pvuillecard/miniconda3/etc/profile.d/conda.sh
+      - conda activate uniface

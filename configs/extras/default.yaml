@@ -6,3 +6,32 @@ enforce_tags: True
 
 # pretty print config tree at the start of the run using Rich library
 print_config: True
+
+# data global settings
+gaze360:
+  _target_: gaze_module.data.components.gaze_dataset.Gaze360Image
+  _partial_: true
+  data_location: null
+  image_db_path: ${paths.data_dir}/Gaze360/gaze360_image_database.pkl
+  sample_path: ${paths.data_dir}/Gaze360/samples/image_samples.csv
+  head_bbox_name: 'head_bbox_yolo'
+
+gfie:
+  _target_: gaze_module.data.components.gaze_dataset.GFIEImage
+  _partial_: true
+  data_location: null
+  image_db_path: ${paths.data_dir}/GFIE/gfie_image_database.pkl
+  sample_path: ${paths.data_dir}/GFIE/sample/samples.csv
+  head_bbox_name: null
+
+mpsgaze:
+  _target_: gaze_module.data.components.gaze_dataset.MPSGazeImage
+  _partial_: true
+  data_location: null
+  image_db_path: ${paths.data_dir}/MPSGaze/mpsgaze_image_database.pkl
+  sample_path: ${paths.data_dir}/MPSGaze/mpsgaze_file.csv
+  head_bbox_name: null
+
+# common parameters
+bbox_scale_ratio: 0.1
+head_resolution: 224

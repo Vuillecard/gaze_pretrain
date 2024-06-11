@@ -1,10 +1,14 @@
 # path to root directory
 # this requires PROJECT_ROOT environment variable to exist
 # you can replace it with "." if you want the root to be the current working directory
-root_dir: ${oc.env:PROJECT_ROOT}
 
+root_dir: ${oc.env:PROJECT_ROOT}
+temp_dir: /idiap/temp/pvuillecard
+torch_cache_dir: ${paths.temp_dir}/library/torch/hub
 # path to data directory
-data_dir: ${paths.root_dir}/data/
+data_dir: ${paths.temp_dir}/datasets/
+gaze360_dir: ${paths.data_dir}/Gaze360/
+ccdbhg_dir: ${paths.data_dir}/CCDbHG/
 
 # path to logging directory
 log_dir: ${paths.root_dir}/logs/
