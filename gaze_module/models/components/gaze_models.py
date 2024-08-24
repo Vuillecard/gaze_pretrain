@@ -53,30 +53,21 @@ class TemporalEncoder(nn.Module):
         super(TemporalEncoder, self).__init__()
         self.input_size = input_size
         self.img_feature_dim = 256  # the dimension of the CNN feature to represent each frame
+        self.output_size = 2*self.img_feature_dim # because of bidirectional LSTM
 
         # The LSTM layer
-        self.lstm = nn.LSTM(self.img_feature_dim, self.img_feature_dim,bidirectional=True,num_layers=2,batch_first=True)
+        self.lstm = nn.LSTM(self.img_feature_dim, self.img_feature_dim, bidirectional=True, num_layers=2, batch_first=True)
 
     def forward(self, input):
 
         b,t,d = input.size()
 
-        
         base_out = base_out.view(input.size(0),7,self.img_feature_dim)
 
         lstm_out, _ = self.lstm(base_out)
-        lstm_out = lstm_out[:,3,:]
-        output = self.last_layer(lstm_out).view(-1,3)
-
-
-        angular_output = output[:,:2]
-        angular_output[:,0:1] = math.pi*nn.Tanh()(angular_output[:,0:1])
-        angular_output[:,1:2] = (math.pi/2)*nn.Tanh()(angular_output[:,1:2])
-
-        var = math.pi*nn.Sigmoid()(output[:,2:3])
-        var = var.view(-1,1).expand(var.size(0),2)
-
-        return angular_output,var
+        lstm_out = lstm_out[:,t//2,:]
+        
+        return lstm_out
 
 class TorchvisionEncoder(nn.Module):
     def __init__(
@@ -86,6 +77,7 @@ class TorchvisionEncoder(nn.Module):
         head_size: int
         ):
         super(TorchvisionEncoder, self).__init__()
+        self.model_name = model_name
 
         if model_name == "swin_v2_t":
             if pretrained:
@@ -108,6 +100,18 @@ class TorchvisionEncoder(nn.Module):
             """ model that can accept image and video inputs """
             omivore = torch.hub.load("facebookresearch/omnivore", model="omnivore_swinT")
             self.model = omivore.trunk
+            self.output_size = 768
+        
+        elif model_name == "resnet50":
+            self.model = resnet50(pretrained=pretrained)
+            self.model.fc1 = nn.Linear(2048, 768)
+            self.model.fc2 = nn.Identity()
+            self.output_size = 768
+        
+        elif model_name == "resnet18":
+            self.model = resnet18(pretrained=pretrained)
+            self.model.fc1 = nn.Linear(512, 768)
+            self.model.fc2 = nn.Identity()
             self.output_size = 768
 
     def forward(self, x):
@@ -205,10 +209,16 @@ class GazeNet(nn.Module):
         encoder: nn.Module,
         head : partial,
         activation: nn.Module = nn.Identity(),
+        temporal_encoder: partial = None,
         ):
         super(GazeNet, self).__init__()
         self.encoder = encoder
-        self.head = head(in_features= encoder.output_size)
+        if temporal_encoder is not None:
+            self.temporal_encoder = temporal_encoder(input_size=encoder.output_size)
+            self.head = head(in_features= self.temporal_encoder.output_size)
+        else:
+            self.head = head(in_features= encoder.output_size)
+        
         self.activation = activation
 
     def forward(self, x, data_id):
@@ -248,9 +258,10 @@ class BaseGazeNet(nn.Module):
         
         x = self.encoder(x)
         x = self.activation(x)
-        
         x_dict = self.head(x)
 
         return x_dict
+    
+
 
     
