@@ -44,7 +44,40 @@ class ResNet(nn.Module):
 
     def forward(self, x):
         return self.model(x)
-    
+
+class TemporalEncoder(nn.Module):
+
+    def __init__(self
+                 ,input_size
+        ):
+        super(TemporalEncoder, self).__init__()
+        self.input_size = input_size
+        self.img_feature_dim = 256  # the dimension of the CNN feature to represent each frame
+
+        # The LSTM layer
+        self.lstm = nn.LSTM(self.img_feature_dim, self.img_feature_dim,bidirectional=True,num_layers=2,batch_first=True)
+
+    def forward(self, input):
+
+        b,t,d = input.size()
+
+        
+        base_out = base_out.view(input.size(0),7,self.img_feature_dim)
+
+        lstm_out, _ = self.lstm(base_out)
+        lstm_out = lstm_out[:,3,:]
+        output = self.last_layer(lstm_out).view(-1,3)
+
+
+        angular_output = output[:,:2]
+        angular_output[:,0:1] = math.pi*nn.Tanh()(angular_output[:,0:1])
+        angular_output[:,1:2] = (math.pi/2)*nn.Tanh()(angular_output[:,1:2])
+
+        var = math.pi*nn.Sigmoid()(output[:,2:3])
+        var = var.view(-1,1).expand(var.size(0),2)
+
+        return angular_output,var
+
 class TorchvisionEncoder(nn.Module):
     def __init__(
         self,
@@ -192,5 +225,32 @@ class GazeNet(nn.Module):
 
         return x_dict
 
+# Baseline model for gaze estimation 
+class BaseGazeNet(nn.Module):
+
+    def __init__(
+        self, 
+        encoder: nn.Module,
+        head : partial,
+        activation: nn.Module = nn.Identity(),
+        ):
+        super(GazeNet, self).__init__()
+        self.encoder = encoder
+        self.head = head(in_features= encoder.output_size)
+        self.activation = activation
+
+    def forward(self, x, data_id):
+        # x => B, T, C, H, W
+        assert x.dim() == 5
+        x = einops.rearrange(x, 'b t c h w -> b c t h w')
+        if x.size(2) == 1:
+            x = x.squeeze(2)
+        
+        x = self.encoder(x)
+        x = self.activation(x)
+        
+        x_dict = self.head(x)
+
+        return x_dict
 
     
