@@ -501,7 +501,7 @@ def save_pred_gaze_results(exp_results,output_dir,mode_angular = 'spherical'):
                     data_save[f'frame_{exp_results["frame_id"][i]:08d}_face_{exp_results["person_id"][i]:08d}'] = {
                         'gaze_vector_pred': exp_results['frame_pred'][i]
                     }
-                elif data_id in [5,9,10]:
+                elif data_id in [5,9,10,13]:
                     data_save[f'clip_{exp_results["video_id"][i]:08d}_frame_{exp_results["frame_id"][i]:08d}_face_{exp_results["person_id"][i]:08d}'] = {
                         'gaze_vector_pred': exp_results['frame_pred'][i]
                     }

@@ -126,8 +126,16 @@ childplay:
   _target_: gaze_module.data.components.gaze_dataset.ChildPlayImage
   _partial_: true
   image_db_path: ${paths.data_dir}/ChildPlay/childplay_image_database.pkl
-  sample_path: ${paths.data_dir}/ChildPlay/samples/sample_pred.csv
+  sample_path: ${paths.data_dir}/ChildPlay/childplay_file.csv
   head_bbox_name: null
+
+childplayvideo:
+  _target_: gaze_module.data.components.gaze_dataset.ChildPlayVideo
+  _partial_: true
+  image_db_path: ${paths.data_dir}/ChildPlay/childplay_image_database.pkl
+  sample_path: ${paths.data_dir}/ChildPlay/childplay_file.csv
+  head_bbox_name: null
+  strategy: 'followed'
 
 eyediap:
   _target_: gaze_module.data.components.gaze_dataset.EyediapImage

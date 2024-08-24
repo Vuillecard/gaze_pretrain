@@ -15,7 +15,8 @@ data:
     # - ${extras.eyediap}
     # - ${extras.gazefollow}
     # - ${extras.vat}
-    - ${extras.vatvideo}
+    # - ${extras.vatvideo}
+    - ${extras.childplayvideo}
   
   batch_size: 120 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
   num_workers: 10

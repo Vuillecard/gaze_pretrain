@@ -23,7 +23,8 @@ DATASET_ID = {
     9: "vat",
     10: "vatvideo",
     11: "eyediapvideo",
-    12: "mpiiface"
+    12: "mpiiface",
+    13: "childplayvideo",
 }
 
 def get_bbox_in_body(bbox, body_bbox):
@@ -678,6 +679,106 @@ class ChildPlayImage(BaseImage):
             sample = self.transform(sample)
 
         return sample 
+    
+class ChildPlayVideo(BaseImage): 
+
+    def __init__(self, 
+                image_db_path,
+                sample_path,
+                split,
+                head_bbox_name,
+                transform=None,
+                additonal_data = [],
+                strategy = "fixed_center"):
+        
+        super().__init__('ChildPlay',image_db_path, sample_path, split, head_bbox_name, 
+                         transform, additonal_data)
+        self.strategy = strategy
+        self.window_size = 7
+        self.window_stride = 3
+        if split in ["train", "validation"]:
+            #self.filter_existing_sequence()
+            self.filter_invalide_gaze()
+        
+        #self.filter_invalide_gaze()
+
+    def get_clip_frame_face(self, key):
+        key_split = key.split("_frame_")
+        split_frame_face = key_split[-1]
+        frame = int( split_frame_face.split("_face_")[0])
+        face = int(split_frame_face.split("_face_")[1])
+        clip = int(key_split[0].replace("clip_", ""))
+        return clip, frame, face
+    
+    def filter_invalide_gaze(self): 
+        # filter out invalide gaze
+        self.sample['gaze_valid'] = 1
+        def _check_for_valide(row):
+            gaze_vector = self.data[row["image_id"]]["other"]["gaze_vector"]
+            if np.isnan(gaze_vector).any():
+                return 0
+            return 1
+        self.sample['gaze_valid'] = self.sample.apply(_check_for_valide, axis=1)
+        self.sample = self.sample[self.sample['gaze_valid'] == 1]
+        self.sample.reset_index(drop=True, inplace=True)
+    
+    def __getitem__(self, idx):
+        
+    
+        image_key = self.sample.iloc[idx]["image_id"]
+        clip, frame, face = self.get_clip_frame_face(image_key)
+
+        middle_frame_infos = self.data[image_key]
+        sequence_keys = [f"clip_{clip:08d}_frame_{i:08d}_face_{face:08d}" for i in 
+                             create_window(frame, self.window_size, self.window_stride)]
+        
+        valid_keys = [ key in self.data for key in sequence_keys ]
+        frames_infos = [ self.data[key] if valid else middle_frame_infos.copy() 
+                        for key, valid in zip(sequence_keys, valid_keys)]
+        
+        # input setup
+        sample = {}
+        sample["images"] = [ 
+            self.read_image(self.get_path_data(frames_info["image_path"])) 
+            for frames_info in frames_infos 
+        ]
+        
+        sample["frame_id"] = int(middle_frame_infos["frame_id"].replace("frame_", ""))
+        sample["clip_id"] = int(middle_frame_infos["clip_id"].replace("clip_", ""))
+        sample["person_id"] = int(middle_frame_infos["person_id"].replace("face_", ""))
+        sample["data_id"] = 13
+        sample["bbox_strategy"] = self.strategy
+
+        if self.strategy == "followed":
+            sample["head_bbox"] = [
+                f["other"]["head_bbox_xyxy"]
+                        for f in frames_infos
+                ]
+        else :
+            raise ValueError(f"strategy {self.strategy} not implemented")
+
+        # task gaze
+        # gazes = [
+        #     frames_info["other"]["gaze_vector"]
+        # ]  # need to process the gaze cf gaze360 git
+        # if gazes[0] is None :
+        #     sample["task_gaze_yawpitch"] = None
+        #     sample["task_gaze_vector"] = None
+        # else:
+        #     gaze_xy = torch.Tensor(np.array(gazes))
+        #     gaze_xy = nn.functional.normalize(gaze_xy, p=2, dim=1)
+        #     # check if nan in target_vector
+        #     if torch.isnan(gaze_xy).any():
+        #         print('dataset target_vector has nan')
+
+            # only the gaze of the middle frame
+        sample["task_gaze_yawpitch"] = -1
+        sample["task_gaze_vector"] = -1
+
+        if self.transform:
+            sample = self.transform(sample)
+
+        return sample 
 
 class EyediapImage(BaseImage): 
 
@@ -896,9 +997,7 @@ class VATVideo(BaseImage):
     
     def __getitem__(self, idx):
         
-        key = self.sample.iloc[idx]["image_id"]
-        frames_info = self.data[key]
-
+    
         image_key = self.sample.iloc[idx]["image_id"]
         clip, frame, face = self.get_clip_frame_face(image_key)
 
