@@ -1,0 +1,1 @@
+salloc -A biped -p gpu --gpus 1 --mem 60G --cpus-per-task 10 --time 01:00:00

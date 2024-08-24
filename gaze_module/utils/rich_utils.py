@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Sequence
-
+import os 
+import yaml
 import rich
 import rich.syntax
 import rich.tree
@@ -97,3 +98,4 @@ def enforce_tags(cfg: DictConfig, save_to_file: bool = False) -> None:
     if save_to_file:
         with open(Path(cfg.paths.output_dir, "tags.log"), "w") as file:
             rich.print(cfg.tags, file=file)
+

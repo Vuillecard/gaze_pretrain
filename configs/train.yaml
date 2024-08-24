@@ -29,6 +29,12 @@ defaults:
   # debugging config (enable through command line, e.g. `python train.py debug=default)
   - debug: null
 
+
+hydra:
+  callbacks:
+    save_job_info:
+      _target_: hydra.experimental.callbacks.PickleJobInfoCallback
+
 # task name, determines output directory path
 task_name: "train"
 

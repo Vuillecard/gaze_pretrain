@@ -1,3 +1,6 @@
+from functools import partial
+import einops
+from requests import get
 import torch 
 from torch import nn
 from gaze_module.models.resnets.resnet import (
@@ -8,36 +11,75 @@ from gaze_module.models.resnets.resnet import (
     resnet152
 )
 import math
+from torchvision.models import get_model
 
 class ResNet(nn.Module):
 
     def __init__(
         self,
         model_name: str,
-        pretrained: bool
+        pretrained: bool,
+        head_size: int
         ):
         super(ResNet, self).__init__()
 
         if model_name == "resnet18":
             self.model = resnet18(pretrained=pretrained)
-        elif model_name == "resnet34":
-            self.model = resnet34(pretrained=pretrained)
+            self.model.fc1 = nn.Linear(512, 768)
+        # elif model_name == "resnet34":
+        #     self.model = resnet34(pretrained=pretrained)
         elif model_name == "resnet50":
             self.model = resnet50(pretrained=pretrained)
-        elif model_name == "resnet101":
-            self.model = resnet101(pretrained=pretrained)
-        elif model_name == "resnet152":
-            self.model = resnet152(pretrained=pretrained)
+            self.model.fc1 = nn.Linear(2048, 768)
+        # elif model_name == "resnet101":
+        #     self.model = resnet101(pretrained=pretrained)
+        # elif model_name == "resnet152":
+        #     self.model = resnet152(pretrained=pretrained)
         else:
             raise ValueError(f"Invalid model name: {model_name}")
 
         self.model.fc2 = nn.Identity()
         # output size 1000
-        self.output_size = 1000
+        self.output_size = 768
 
     def forward(self, x):
         return self.model(x)
     
+class TorchvisionEncoder(nn.Module):
+    def __init__(
+        self,
+        model_name: str,
+        pretrained: bool,
+        head_size: int
+        ):
+        super(TorchvisionEncoder, self).__init__()
+
+        if model_name == "swin_v2_t":
+            if pretrained:
+                self.model = get_model("swin_v2_t", weights="DEFAULT")
+            else:
+                self.model = get_model("swin_v2_t")
+            self.model.head = nn.Linear(768, 768)
+            self.output_size = 768
+
+        elif model_name == "inception_v3":
+            if pretrained:
+                self.model = get_model("inception_v3", weights="DEFAULT")
+            else:
+                self.model = get_model("inception_v3")
+            self.model.fc = nn.Linear(2048, 768)
+            self.model.aux_logits = False
+            self.output_size = 768
+        
+        elif model_name == "omnivore":
+            """ model that can accept image and video inputs """
+            omivore = torch.hub.load("facebookresearch/omnivore", model="omnivore_swinT")
+            self.model = omivore.trunk
+            self.output_size = 768
+
+    def forward(self, x):
+        return self.model(x)
+
 
 class LinearHead(nn.Module):
     def __init__(self, in_features, out_features):
@@ -57,52 +99,70 @@ class LinearHead(nn.Module):
             out_features=config.out_features
         )
 
-class LinearHeadSpherical(nn.Module):
+class HeadCartesianFromSpherical(nn.Module):
+
     def __init__(self, in_features):
-        super(LinearHeadSpherical, self).__init__()
+        super(HeadCartesianFromSpherical, self).__init__()
 
         self.head = nn.Linear(in_features, 3)
+        self.softplus = nn.Softplus()
+        self.tanh = nn.Tanh()
 
     def forward(self, x):
-
         x = self.head(x)
-      
         angular_output = x[:, :2]
-        angular_output[:, 0:1] = math.pi * nn.Tanh()(angular_output[:, 0:1])
-        angular_output[:, 1:2] = (math.pi / 2) * nn.Tanh()(angular_output[:, 1:2])
-
-        var = math.pi * nn.Sigmoid()(x[:, 2:3])
-        #var = var.view(-1, 1).expand(var.size(0), 2)
-
-        output = torch.cat([angular_output, var], dim=1)
-        return output
-
-class LinearHeadCartesian(nn.Module):
-    def __init__(self, in_features):
-        super(LinearHeadCartesian, self).__init__()
-
-        self.head = nn.Linear(in_features, 3)
-
-        
-    def forward(self, x):
-
-        x = self.head(x)
-      
-        angular_output = x[:, :2]
-        angular_output[:, 0:1] = math.pi * nn.Tanh()(angular_output[:, 0:1])
-        angular_output[:, 1:2] = (math.pi / 2) * nn.Tanh()(angular_output[:, 1:2])
-
-        var = math.pi * nn.Sigmoid()(x[:, 2:3])
-        #var = var.view(-1, 1).expand(var.size(0), 2)
+        angular_output[:, 0:1] = math.pi * self.tanh(angular_output[:, 0:1])
+        angular_output[:, 1:2] = (math.pi / 2) * self.tanh(angular_output[:, 1:2])
 
         x = torch.cos(angular_output[:, 1:2]) * torch.sin(angular_output[:, 0:1])
         y = torch.sin(angular_output[:, 1:2])
         z = -torch.cos(angular_output[:, 1:2]) * torch.cos(angular_output[:, 0:1])
         
-        output = torch.cat([x, y, z, var], dim=1)
-
+        var = self.softplus(x[:, 2:3])
+        output = { 
+            "cartesian" : torch.cat([x, y, z], dim=1),
+            "var" : var
+        } 
         return output
-       
+
+class HeadCartesian(nn.Module):
+
+    def __init__(self, in_features):
+        super(HeadCartesian, self).__init__()
+
+        self.head_dir = nn.Linear(in_features, 3)
+        self.head_var = nn.Linear(in_features, 1)
+        self.softplus = nn.Softplus()
+
+    def forward(self, x):
+        dir = self.head_dir(x)
+        var = self.softplus(self.head_var(x))
+        output = { 
+            "cartesian" : dir,
+            "var" : var
+        } 
+        return output
+
+class HeadSpherical(nn.Module):
+
+    def __init__(self, in_features):
+        super(HeadSpherical, self).__init__()
+
+        self.head = nn.Linear(in_features, 3)
+        self.tanh = nn.Tanh()
+
+    def forward(self, x):
+        x = self.head(x)
+        angular_output = x[:, :2]
+        angular_output[:, 0:1] = math.pi * self.tanh(angular_output[:, 0:1])
+        angular_output[:, 1:2] = (math.pi / 2) * self.tanh(angular_output[:, 1:2])
+
+        var = math.pi * nn.Sigmoid()(x[:, 2:3])
+        output = { 
+            "spherical" : angular_output,
+            "var" : var
+        } 
+        return output
 
 # generic model for gaze estimation 
 class GazeNet(nn.Module):
@@ -110,36 +170,27 @@ class GazeNet(nn.Module):
     def __init__(
         self, 
         encoder: nn.Module,
-        head : str,
-        mode: str
+        head : partial,
+        activation: nn.Module = nn.Identity(),
         ):
         super(GazeNet, self).__init__()
-
-        self.encoder = encoder 
-
-        if head == "linear":
-            if mode == "cartesian":
-                self.head = LinearHead(
-                    in_features=self.encoder.output_size,
-                    out_features=4
-                )
-            elif mode == "spherical":
-                self.head = LinearHeadSpherical(
-                    in_features=self.encoder.output_size
-                )
-            elif mode == "spherical_to_cartesian":
-                self.head = LinearHeadCartesian(
-                    in_features=self.encoder.output_size
-                )
-            else:
-                raise ValueError(f"Invalid mode: {mode}")
-        else: 
-            raise ValueError(f"Invalid head: {head}")
+        self.encoder = encoder
+        self.head = head(in_features= encoder.output_size)
+        self.activation = activation
 
     def forward(self, x, data_id):
-        x = x.squeeze(1)
+        # x => B, T, C, H, W
+        assert x.dim() == 5
+        x = einops.rearrange(x, 'b t c h w -> b c t h w')
+        if x.size(2) == 1:
+            x = x.squeeze(2)
+        
         x = self.encoder(x)
-        x = self.head(x)
+        x = self.activation(x)
+        
+        x_dict = self.head(x)
 
-        return x    
+        return x_dict
+
+
     

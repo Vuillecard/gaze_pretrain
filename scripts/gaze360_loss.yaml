@@ -1,0 +1,4 @@
+# Run some loss experiment
+experiment: [gaze360_loss]
+++model.solver.lr: [0.0001]
+++logger.wandb.group: [ "Gaze3_loss_vdf"]

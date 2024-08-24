@@ -1,8 +1,9 @@
 from typing import Any, Dict
 
 from lightning_utilities.core.rank_zero import rank_zero_only
+from numpy import save
 from omegaconf import OmegaConf
-
+import yaml
 from gaze_module.utils import pylogger
 
 log = pylogger.RankedLogger(__name__, rank_zero_only=True)
@@ -21,8 +22,10 @@ def log_hyperparameters(object_dict: Dict[str, Any]) -> None:
         - `"trainer"`: The Lightning trainer.
     """
     hparams = {}
+    save_config = {}
 
     cfg = OmegaConf.to_container(object_dict["cfg"])
+    
     model = object_dict["model"]
     trainer = object_dict["trainer"]
 
@@ -51,7 +54,8 @@ def log_hyperparameters(object_dict: Dict[str, Any]) -> None:
     hparams["tags"] = cfg.get("tags")
     hparams["ckpt_path"] = cfg.get("ckpt_path")
     hparams["seed"] = cfg.get("seed")
-
+    
     # send hparams to all loggers
     for logger in trainer.loggers:
         logger.log_hyperparams(hparams)
+

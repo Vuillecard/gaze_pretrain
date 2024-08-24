@@ -1,0 +1,119 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: gaze_combined
+  - override /model: gazenet
+  - override /callbacks: default
+  - override /trainer: gpu
+  - override /logger: csv 
+  - override /extras: default
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["gaze360-Gazefollow", "Resnet"]
+
+seed: 12345
+
+trainer:
+  # min_epochs: 10
+  # max_epochs: 80
+  # gradient_clip_val: 10
+  # accumulate_grad_batches: 3
+  # debug 
+  max_epochs: 3
+  overfit_batches: 3
+  limit_test_batches: 5
+  # detect_anomaly: True
+
+
+callbacks:
+
+  model_checkpoint:
+    monitor: "val/angular_Gaze360"
+    mode: "min"
+  
+  early_stopping: null 
+    # monitor: "val/angular_Gaze360"
+    # patience: 30
+    # mode: "min"
+
+extras: 
+  bbox_scale_ratio: 0.1
+
+model:
+  solver:
+    lr: 0.0003
+    weight_decay: 0.01
+    layer_decay: null
+    warmup_epochs: 5
+    scheduler: "cosine"
+    apply_linear_scaling: True
+  
+  net:
+    _target_: gaze_module.models.components.gaze_models.GazeNet
+    encoder: ${extras.resnet18} # resnet18, resnet50, swin_v2_t, inception_v3
+    head: linear
+    #mode: spherical_to_cartesian
+    mode: cartesian
+
+  loss:
+    _target_: gaze_module.models.losses.GazeLoss
+    main:
+      _target_: gaze_module.models.losses.CosineGazeLoss
+    add: null
+      # _target_: gaze_module.models.losses.PinBallLoss
+      # mode: cartesian
+  
+  mode_angular: cartesian
+
+data:
+  datasets_train:
+    - ${extras.gaze360}
+    #- ${extras.gazefollow}
+
+  train_transform:
+    _target_: gaze_module.data.components.transforms.Compose
+    transforms:
+      - _target_: gaze_module.data.components.transforms.BboxReshape
+        square: True
+        ratio: ${extras.bbox_scale_ratio}
+      - _target_: gaze_module.data.components.transforms.BboxRandomJitter
+        jitter_ratio: 0.05
+      - _target_: gaze_module.data.components.transforms.ToImage
+      - _target_: gaze_module.data.components.transforms.CropRandomResize
+        output_size: ${model.net.encoder.head_size}
+        scale: [0.9,1]
+        ratio: [0.9,1.1]
+      - _target_: gaze_module.data.components.transforms.HorizontalFlip
+      - _target_: gaze_module.data.components.transforms.ColorJitter
+        brightness: [0.5, 1.5]
+        contrast: [0.5, 1.5]
+        saturation: [0.2, 1.5]
+        hue: null
+        p: 0.5
+      - _target_: gaze_module.data.components.transforms.RandomGaussianBlur
+        radius: 5
+        p: 0.5
+      - _target_: gaze_module.data.components.transforms.ToTensor
+      - _target_: gaze_module.data.components.transforms.Normalize
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+
+
+  batch_size: 3 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
+  num_workers: 3
+  # batch_size: 120 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
+  # num_workers: 10
+  data_to_cluster: False
+
+logger:
+  wandb:
+    tags: ${tags}
+    group: "Gaze3_debug"
+  aim:
+    experiment: "gaze static resnet spherical to cartesian and cosine loss"
+

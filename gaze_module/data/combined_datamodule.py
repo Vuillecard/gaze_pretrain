@@ -63,6 +63,7 @@ class ConcatenateDataModule(LightningDataModule):
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
         self.data_test: Optional[Dataset] = None
+        self.data_to_cluster = data_to_cluster
 
         self.sampling_dataset = sampling_dataset
 
@@ -78,41 +79,42 @@ class ConcatenateDataModule(LightningDataModule):
         Do not use it to assign state (self.x = y).
         """
         # In case we run on slurm, we copy the data to the local node for fast reading
-        pass
-        # if self.hparams.data_to_cluster:
-        #     try:
-        #         tmp_dir = os.environ["TMPDIR"]
-        #         self.data_location = os.path.join(tmp_dir, f"data_{self.data_name}")
-        #     except:
-        #         self.data_location = None
+    
+        try:
+            tmp_dir = os.environ["TMPDIR"]
+            self.data_location = tmp_dir
+        except:
+            self.data_location = None
+        
+        # parallel copy of images to tmp dir
+        def _copy_image_to_tmp(image_path):
+            dst_tmp = image_path.replace(dir_data, '')
+            dst = os.path.join(self.data_location, dst_tmp)
+            if not os.path.exists(dst):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copyfile(image_path, dst)
+        
+        if self.hparams.data_to_cluster and self.data_location:
+            
+            dir_data = '/idiap/project/epartners4all/data/uniface_database/'
 
-        #     if self.data_location:
-        #         # load the clip database
+            print("collecting images to copy")
+            datasets_names = ['Gaze360', 'Gazefollow', 'GFIE', 'MPSGaze', 'VAT']
+            file_list = []
+            for dataset_name in datasets_names:
+                for root, dirs, files in os.walk(os.path.join(dir_data, dataset_name)):
+                    for file in files:
+                        if file.endswith("head_crop.jpg"):
+                            file_list.append(os.path.join(root, file))
 
-        #         for dataset in self.dataset_name: 
-        #         os.makedirs(self.data_location, exist_ok=True)
-        #         with open(
-        #             os.path.join(self.data_dir, f"{self.data_name}_image_database.pkl"), "rb"
-        #         ) as f:
-        #             image_database = pickle.load(f)
-
-        #         def _copy_image_to_tmp(image_dict):
-        #             src = image_dict["image_path_crop"]
-        #             image_name = image_dict["image_path_crop"].split("/")[-1]
-        #             dst = os.path.join(self.data_location, image_name)
-        #             if not os.path.exists(dst):
-        #                 shutil.copyfile(src, dst)
-
-        #         # Copy images to tmp dir using multiprocessing
-        #         # Faster IO than reading from NFS on the cluster
-        #         log.info(f"Copying images to tmp dir: {self.data_location}")
-        #         start = time()
-        #         image_dicts = list(image_database.values())
-        #         total_imgs = len(image_dicts)
-        #         with ThreadPool(4) as p:
-        #             p.map(_copy_image_to_tmp, image_dicts)
-        #         end = time()
-        #         log.info(f"Done copying {total_imgs} images to tmp dir took: {end-start} s")
+            print("start copying images")
+            start = time()
+            total_imgs = len(file_list)
+            print(f"Total images: {total_imgs}")
+            with ThreadPool(8) as p:
+                p.map(_copy_image_to_tmp, file_list)
+            end = time()
+            print(f"Time to copy images: {end-start}") 
     
     def setup(self, stage: Optional[str] = None) -> None:
         """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
@@ -124,6 +126,7 @@ class ConcatenateDataModule(LightningDataModule):
 
         :param stage: The stage to setup. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`. Defaults to ``None``.
         """
+
         # Divide batch size by the number of devices.
         if self.trainer is not None:
             if self.hparams.batch_size % self.trainer.world_size != 0:
@@ -131,7 +134,7 @@ class ConcatenateDataModule(LightningDataModule):
                     f"Batch size ({self.hparams.batch_size}) is not divisible by the number of devices ({self.trainer.world_size})."
                 )
             self.batch_size_per_device = self.hparams.batch_size // self.trainer.world_size
-
+        
         # train
         train_data = [dataset(split = 'train',transform=self.train_transform) for dataset in self.hparams.datasets_train]
         self.data_train = ConcatDataset(
@@ -180,7 +183,7 @@ class ConcatenateDataModule(LightningDataModule):
             for data in test_data
         ]
         del test_data
-
+            
     def train_dataloader(self) -> DataLoader[Any]:
         """Create and return the train dataloader.
 
@@ -222,6 +225,98 @@ class ConcatenateDataModule(LightningDataModule):
         return DataLoader(
             self.data_test,
             batch_sampler=sequential_sampler,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
+        )
+
+
+class SimpleDataModule(LightningDataModule):
+    """`LightningDataModule` to combined dataset for training with multiple datasets
+
+    This method rely on ConcatDataset to combine multiple datasets into one.
+    We develop a custom batch sampler such that one batch is batch from one dataset
+
+    Read the docs:
+        https://lightning.ai/docs/pytorch/latest/data/datamodule.html
+    """
+
+    def __init__(
+        self,
+        datasets: List,
+        test_transform ,
+        num_workers: int = 0,
+        batch_size: int = 8,
+        pin_memory: bool = False,
+        data_to_cluster: bool = False,
+    ) -> None:
+        """Initialize a `MNISTDataModule`.
+
+        :param data_dir: The data directory. Defaults to `"data/"`.
+        :param train_val_test_split: The train, validation and test split. Defaults to `(55_000, 5_000, 10_000)`.
+        :param batch_size: The batch size. Defaults to `64`.
+        :param num_workers: The number of workers. Defaults to `0`.
+        :param pin_memory: Whether to pin memory. Defaults to `False`.
+        """
+        super().__init__()
+
+        # this line allows to access init params with 'self.hparams' attribute
+        # also ensures init params will be stored in ckpt
+        self.save_hyperparameters(logger=False)
+        
+        
+        self.test_transform = test_transform
+        self.data_pred: Optional[Dataset] = None
+
+        self.batch_size = batch_size
+        self.batch_size_per_device = batch_size
+
+
+    def prepare_data(self) -> None:
+        """Download data if needed. Lightning ensures that `self.prepare_data()` is called only
+        within a single process on CPU, so you can safely add your downloading logic within. In
+        case of multi-node training, the execution of this hook depends upon
+        `self.prepare_data_per_node()`.
+
+        Do not use it to assign state (self.x = y).
+        """
+        # In case we run on slurm, we copy the data to the local node for fast reading
+        pass
+
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        """Load data. Set variables: `self.data_train`, `self.data_val`, `self.data_test`.
+
+        This method is called by Lightning before `trainer.fit()`, `trainer.validate()`, `trainer.test()`, and
+        `trainer.predict()`, so be careful not to execute things like random split twice! Also, it is called after
+        `self.prepare_data()` and there is a barrier in between which ensures that all the processes proceed to
+        `self.setup()` once the data is prepared and available for use.
+
+        :param stage: The stage to setup. Either `"fit"`, `"validate"`, `"test"`, or `"predict"`. Defaults to ``None``.
+        """
+        # Divide batch size by the number of devices.
+        if self.trainer is not None:
+            if self.hparams.batch_size % self.trainer.world_size != 0:
+                raise RuntimeError(
+                    f"Batch size ({self.hparams.batch_size}) is not divisible by the number of devices ({self.trainer.world_size})."
+                )
+            self.batch_size_per_device = self.hparams.batch_size // self.trainer.world_size
+
+        # pred
+        pred_data = [dataset(split ='all',transform=self.test_transform) for dataset in self.hparams.datasets]
+        assert len(pred_data) == 1
+        self.data_pred = pred_data[0]
+
+
+    def predict_dataloader(self) -> DataLoader[Any]:
+        """Create and return the test dataloader.
+
+        :return: The test dataloader.
+        """
+       
+        return DataLoader(
+            self.data_pred,
+            shuffle=False,
+            batch_size=self.batch_size_per_device,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
         )

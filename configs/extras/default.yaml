@@ -11,27 +11,215 @@ print_config: True
 gaze360:
   _target_: gaze_module.data.components.gaze_dataset.Gaze360Image
   _partial_: true
-  data_location: null
   image_db_path: ${paths.data_dir}/Gaze360/gaze360_image_database.pkl
   sample_path: ${paths.data_dir}/Gaze360/samples/image_samples.csv
   head_bbox_name: 'head_bbox_yolo'
 
+gaze360video:
+  _target_: gaze_module.data.components.gaze_dataset.Gaze360Video
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gaze360/gaze360_image_database.pkl
+  sample_path: ${paths.data_dir}/Gaze360/samples/image_samples.csv
+  head_bbox_name: 'head_bbox_yolo'
+  strategy: 'followed'
+
 gfie:
   _target_: gaze_module.data.components.gaze_dataset.GFIEImage
   _partial_: true
-  data_location: null
   image_db_path: ${paths.data_dir}/GFIE/gfie_image_database.pkl
   sample_path: ${paths.data_dir}/GFIE/sample/samples.csv
   head_bbox_name: null
 
+gfievideo:
+  _target_: gaze_module.data.components.gaze_dataset.GFIEVideo
+  _partial_: true
+  image_db_path: ${paths.data_dir}/GFIE/gfie_image_database.pkl
+  sample_path: ${paths.data_dir}/GFIE/sample/samples.csv
+  head_bbox_name: null
+  strategy: 'followed'
+
 mpsgaze:
   _target_: gaze_module.data.components.gaze_dataset.MPSGazeImage
   _partial_: true
-  data_location: null
   image_db_path: ${paths.data_dir}/MPSGaze/mpsgaze_image_database.pkl
   sample_path: ${paths.data_dir}/MPSGaze/mpsgaze_file.csv
   head_bbox_name: null
 
+gazefollow: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+
+gazefollow_pseudo: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/gaze360_model/run_2024-06-19_11-13-54/logs/train/runs/run_0/prediction/pred_gaze_gazefollow.pkl
+
+gazefollow_pseudo_omnivore_gaze360: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_omnivoreV_gaze360.pkl
+
+gazefollow_pseudo_omnivore_gfie: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_omnivoreV_gfie.pkl
+
+gazefollow_pseudo_omnivore_360_gfie_mps: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_omnivoreV_360_gfie_mps.pkl
+
+gazefollow_pseudo_omnivore_gfie_mps: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_omnivoreV_gfie_mps.pkl
+
+gazefollow_pseudo_omnivore_gfie_gfiev_mps: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_omnivoreV_gfie_gfiev_mps.pkl
+
+gazefollow_pseudo_omnivore_360_360v: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_omnivoreV_gaze360_gaze360v.pkl
+
+childplay:
+  _target_: gaze_module.data.components.gaze_dataset.ChildPlayImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/ChildPlay/childplay_image_database.pkl
+  sample_path: ${paths.data_dir}/ChildPlay/samples/sample_pred.csv
+  head_bbox_name: null
+
+eyediap:
+  _target_: gaze_module.data.components.gaze_dataset.EyediapImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Eyediap/eyediap_image_database.pkl
+  sample_path: ${paths.data_dir}/Eyediap/eyediap_file.csv
+  head_bbox_name: null
+
+eyediapvideo:
+  _target_: gaze_module.data.components.gaze_dataset.EyediapVideo
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Eyediap/eyediap_image_database.pkl
+  sample_path: ${paths.data_dir}/Eyediap/eyediap_file.csv
+  head_bbox_name: null
+
+mpiiface:
+  _target_: gaze_module.data.components.gaze_dataset.MPIIFaceImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/MPIIFace/mpiiface_image_database.pkl
+  sample_path: ${paths.data_dir}/MPIIFace/mpiiface_file.csv
+  head_bbox_name: null
+
+vat:
+  _target_: gaze_module.data.components.gaze_dataset.VATImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/VAT/vat_image_database.pkl
+  sample_path: ${paths.data_dir}/VAT/vat_file.csv
+  head_bbox_name: null
+
+vatvideo:
+  _target_: gaze_module.data.components.gaze_dataset.VATVideo
+  _partial_: true
+  image_db_path: ${paths.data_dir}/VAT/vat_image_database.pkl
+  sample_path: ${paths.data_dir}/VAT/vat_file.csv
+  head_bbox_name: null
+  strategy: 'followed'
+
+
+vat_pseudo_omni_360_360v:
+  _target_: gaze_module.data.components.gaze_dataset.VATImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/VAT/vat_image_database.pkl
+  sample_path: ${paths.data_dir}/VAT/vat_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/VAT/annotations/gaze_pseudo_omnivoreV_gaze360_gaze360v.pkl
+
+vat_video_pseudo_omni_360_360v:
+  _target_: gaze_module.data.components.gaze_dataset.VATVideo
+  _partial_: true
+  image_db_path: ${paths.data_dir}/VAT/vat_image_database.pkl
+  sample_path: ${paths.data_dir}/VAT/vat_file.csv
+  head_bbox_name: null
+  strategy: 'followed'
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/VAT/annotations/gaze_pseudo_omnivoreV_gaze360_gaze360v.pkl
+
+  
 # common parameters
 bbox_scale_ratio: 0.1
 head_resolution: 224
+
+# encoder 
+
+resnet18:
+  _target_: gaze_module.models.components.gaze_models.ResNet
+  model_name: "resnet18"
+  pretrained: True
+  head_size: 224
+  
+resnet50:
+  _target_: gaze_module.models.components.gaze_models.ResNet
+  model_name: "resnet50"
+  pretrained: True
+  head_size: 224
+
+swin_v2_t:
+  _target_: gaze_module.models.components.gaze_models.TorchvisionEncoder
+  model_name: "swin_v2_t"
+  pretrained: True
+  head_size: 256
+
+inception_v3:
+  _target_: gaze_module.models.components.gaze_models.TorchvisionEncoder
+  model_name: "inception_v3"
+  pretrained: True
+  head_size: 299
+
+omnivore: 
+  _target_: gaze_module.models.components.gaze_models.TorchvisionEncoder
+  model_name: "omnivore"
+  pretrained: True
+  head_size: 224

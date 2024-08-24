@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Tuple
-
+import os 
+import yaml
 import hydra
 import rootutils
 from lightning import LightningDataModule, LightningModule, Trainer
@@ -30,6 +31,7 @@ from gaze_module.utils import (
     instantiate_loggers,
     log_hyperparameters,
     task_wrapper,
+    load_resolve_config,
 )
 
 log = RankedLogger(__name__, rank_zero_only=True)
@@ -88,6 +90,12 @@ def main(cfg: DictConfig) -> None:
 
     :param cfg: DictConfig configuration composed by Hydra.
     """
+    config_resolved = load_resolve_config(cfg)
+    
+    # load config from target experiment
+    cfg.model = config_resolved['model']
+    cfg.data.test_transform = config_resolved['data']['test_transform']
+
     # apply extra utilities
     # (e.g. ask for tags if none are provided in cfg, print cfg tree, etc.)
     extras(cfg)

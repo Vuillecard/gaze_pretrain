@@ -34,10 +34,10 @@ from gaze_module.utils import (
     instantiate_loggers,
     log_hyperparameters,
     task_wrapper,
+    save_resolve_config,
 )
 
 log = RankedLogger(__name__, rank_zero_only=True)
-
 
 @task_wrapper
 def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -53,6 +53,8 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     # set seed for random number generators in pytorch, numpy and python.random
     if cfg.get("seed"):
         L.seed_everything(cfg.seed, workers=True)
+
+    torch.set_float32_matmul_precision('high')
 
     log.info(f"Instantiating datamodule <{cfg.data._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
@@ -84,7 +86,8 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     if cfg.get("train"):
         log.info("Starting training!")
-        trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+        
+        trainer.fit(model=model, datamodule=datamodule, ckpt_path='last')
 
     train_metrics = trainer.callback_metrics
 
@@ -115,7 +118,7 @@ def main(cfg: DictConfig) -> Optional[float]:
     # apply extra utilities
     # (e.g. ask for tags if none are provided in cfg, print cfg tree, etc.)
     extras(cfg)
-
+    save_resolve_config(cfg)
     # train the model
     metric_dict, _ = train(cfg)
 

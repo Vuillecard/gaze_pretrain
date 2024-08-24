@@ -3,15 +3,22 @@ import os
 import pickle
 import json
 import math
+
 import torch
 from lightning import LightningModule
 from torchmetrics import MaxMetric, MinMetric, MeanMetric
-from torchmetrics.classification.accuracy import Accuracy
+
 from omegaconf import DictConfig
 import torch.optim as optim
 from torch import nn
 
-from gaze_module.utils.metrics import AngularError, PredictionSave, compute_gaze_results
+from gaze_module.data.components.gaze_dataset import DATASET_ID
+from gaze_module.utils.metrics import (
+    AngularError, 
+    PredictionSave,
+    compute_gaze_results,
+    save_pred_gaze_results
+)
 
 class GazeModule(LightningModule):
     """Example of a `LightningModule` for MNIST classification.
@@ -54,6 +61,7 @@ class GazeModule(LightningModule):
         compile: bool,
         output_path: str,
         mode_angular: str = "spherical",
+        pretrained_path: str = None,
     ) -> None:
         """Initialize a `MNISTLitModule`.
 
@@ -73,9 +81,21 @@ class GazeModule(LightningModule):
         os.makedirs(self.val_path, exist_ok=True)
         self.test_path = os.path.join(output_path, "metric", "test")
         os.makedirs(self.test_path, exist_ok=True)
+        
+        self.pred_path = os.path.join(output_path, "prediction")
+        os.makedirs(self.pred_path, exist_ok=True)
 
         #self.net = net.load_model()
         self.net = net
+        if pretrained_path is not None:
+            print(f"Loading pretrained model from {pretrained_path}")
+            weight = torch.load(pretrained_path)['state_dict']
+            weight = {k: v for k, v in weight.items() if k.startswith('net')}
+            weight = {k.replace('net.', ''): v for k, v in weight.items()}
+            self.net.load_state_dict(weight)
+        
+        #self.output_type = net.output if hasattr(net, "output") else None
+        #self.output_type = net.output
         # loss function
         #self.criterion = torch.nn.L1Loss()
         self.criterion = loss
@@ -84,21 +104,33 @@ class GazeModule(LightningModule):
         self.mode_angular = mode_angular
         self.train_angular = AngularError(mode=self.mode_angular)
 
-        self.data_name = {
-            1: "Gaze360",
-            2: "GFIE",
-            3: "MPSGaze"
-        }
+        
         self.val_angular = nn.ModuleDict({
             'all': AngularError(mode=self.mode_angular),
-            'Gaze360': AngularError(mode=self.mode_angular),
-            'GFIE': AngularError(mode=self.mode_angular),
-            'MPSGaze': AngularError(mode=self.mode_angular),
+            'gaze360': AngularError(mode=self.mode_angular),
+            'gaze360video': AngularError(mode=self.mode_angular),
+            'gfie': AngularError(mode=self.mode_angular),
+            'gfievideo': AngularError(mode=self.mode_angular),
+            'mpsgaze': AngularError(mode=self.mode_angular),
+            'gazefollow': AngularError(mode=self.mode_angular),
+            'eyediap': AngularError(mode=self.mode_angular),
+            'eyediapvideo': AngularError(mode=self.mode_angular),
+            'vat': AngularError(mode=self.mode_angular),
+            'vatvideo': AngularError(mode=self.mode_angular),
+            'mpiiface': AngularError(mode=self.mode_angular),
         })
         self.test_angular = nn.ModuleDict({
-            'Gaze360': AngularError(mode=self.mode_angular),
-            'GFIE': AngularError(mode=self.mode_angular),
-            'MPSGaze': AngularError(mode=self.mode_angular),
+            'gaze360': AngularError(mode=self.mode_angular),
+            'gaze360video': AngularError(mode=self.mode_angular),
+            'gfie': AngularError(mode=self.mode_angular),
+            'gfievideo': AngularError(mode=self.mode_angular),
+            'mpsgaze': AngularError(mode=self.mode_angular),
+            'gazefollow': AngularError(mode=self.mode_angular),
+            'eyediap': AngularError(mode=self.mode_angular),
+            'eyediapvideo': AngularError(mode=self.mode_angular),
+            'vat': AngularError(mode=self.mode_angular),
+            'vatvideo': AngularError(mode=self.mode_angular),
+            'mpiiface': AngularError(mode=self.mode_angular),
         })
 
         self.test_pred = PredictionSave()
@@ -140,23 +172,29 @@ class GazeModule(LightningModule):
             - A tensor of predictions.
             - A tensor of target labels.
         """
+        data_id = list(set(batch["data_id"].tolist()))
+        assert len(data_id) == 1
+        data_id = data_id[0]
+             
+        output = self.forward(batch["images"], data_id)
         
-        output = self.forward(batch["images"], batch["data_id"])
-        if self.mode_angular == "cartesian":
-            preds = output[:, :3]
-            var = output[:, 3:]
+        if "cartesian" in output.keys():
+            # if data_id == 4:
+            #     k = 2
+            # else: 
+            #     k = 3
+            #output["cartesian"] = output["cartesian"][:]
             target = batch["task_gaze_vector"]
             
-        elif self.mode_angular == "spherical":
-            preds = output[:,:2]
-            var = output[:,2:]
+        elif "spherical" in output.keys():
             target = batch["task_gaze_yawpitch"]
         else:
             raise ValueError(f"Invalid mode: {self.mode_angular}")
         
-        loss = self.criterion(preds, target, var)
-
-        return loss, preds, target
+        loss = self.criterion(output, target)
+        pred = output["cartesian"] if "cartesian" in output.keys() else output["spherical"]
+        return loss, pred, target
+        
 
     def training_step(
         self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
@@ -169,13 +207,14 @@ class GazeModule(LightningModule):
         :return: A tensor of losses between model predictions and targets.
         """
         loss, preds, targets = self.model_step(batch)
-
+        # print(preds.size(), targets.size())
+        # print(preds , targets)
+        # print(loss)
         # update and log metrics
         self.train_loss(loss)
         self.train_angular(preds, targets)
         self.log("train/loss", self.train_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("train/angular", self.train_angular, on_step=True, on_epoch=True, prog_bar=False)
-
+        self.log("train/angular", self.train_angular, on_step=True, on_epoch=True, prog_bar=True)
         # return loss or backpropagation will fail
         return loss
 
@@ -201,8 +240,8 @@ class GazeModule(LightningModule):
 
         data_id = list(set(batch["data_id"].cpu().tolist()))
         assert len(data_id) == 1
-        self.val_angular[self.data_name[data_id[0]]](preds, targets)
-        self.log(f"val/angular_{self.data_name[data_id[0]]}", self.val_angular[self.data_name[data_id[0]]],
+        self.val_angular[DATASET_ID[data_id[0]]](preds, targets)
+        self.log(f"val/angular_{DATASET_ID[data_id[0]]}", self.val_angular[DATASET_ID[data_id[0]]],
                   on_step=False, on_epoch=True, prog_bar=False)
 
     def on_validation_epoch_end(self) -> None:
@@ -225,13 +264,17 @@ class GazeModule(LightningModule):
         # update and log metrics
         self.test_loss(loss)
         self.log("test/loss", self.test_loss, on_step=False, on_epoch=True, prog_bar=False)
-        self.test_pred.update(preds, targets, batch["frame_id"], 
-                              batch["clip_id"], batch["person_id"], batch["data_id"])
-        
         data_id = list(set(batch["data_id"].cpu().tolist()))
         assert len(data_id) == 1
-        self.test_angular[self.data_name[data_id[0]]](preds, targets)
-        self.log(f"test/angular_{self.data_name[data_id[0]]}", self.test_angular[self.data_name[data_id[0]]],
+        data_id = data_id[0]
+        
+        if data_id in [1, 2, 3, 4, 6,7,8,11,12]:
+            self.test_pred.update(preds, targets, batch["frame_id"], 
+                                batch["clip_id"], batch["person_id"], batch["data_id"])
+        
+        self.test_angular[DATASET_ID[data_id]](preds, targets)
+        self.log(f"test/angular_{DATASET_ID[data_id]}", 
+                self.test_angular[DATASET_ID[data_id]],
                 on_step=False, on_epoch=True, prog_bar=False)
 
     def on_test_epoch_end(self) -> None:
@@ -261,6 +304,33 @@ class GazeModule(LightningModule):
         ) as f:
             json.dump(angular_results, f, indent=4)
         self.test_pred.reset()
+    
+    def predict_step(self, batch, batch_idx):
+        #_, preds, targets = self.model_step(batch)
+
+        data_id = list(set(batch["data_id"].cpu().tolist()))
+        assert len(data_id) == 1
+        data_id = data_id[0]
+
+        output = self(batch["images"], 1)
+        preds = output["cartesian"] if "cartesian" in output.keys() else output["spherical"]
+        targets = torch.zeros(preds.size(0), 3) if "cartesian" in output.keys() else torch.zeros(preds.size(0), 2)
+        
+        self.test_pred.update(preds, targets, batch["frame_id"], 
+                                batch["clip_id"], batch["person_id"], batch["data_id"])
+
+    def on_predict_epoch_end(self) -> None:
+        """Lightning hook that is called when a test epoch ends."""
+
+        save_prediction = self.test_pred.compute()
+        with open(
+            os.path.join(
+                self.pred_path, f"prediction_gaze_epoch_{self.current_epoch}.pkl"
+            ),
+            "wb",
+        ) as f:
+            pickle.dump(save_prediction, f)
+        save_pred_gaze_results(save_prediction,self.pred_path, self.mode_angular)
 
     def setup(self, stage: str) -> None:
         """Lightning hook that is called at the beginning of fit (train + validate), validate,
@@ -332,7 +402,7 @@ class GazeModule(LightningModule):
         # print("Param groups = %s" % json.dumps(parameter_group_names, indent=2))
         optim_params = list(parameter_group_vars.values())
         return optim_params
-    
+   
     def configure_optimizers(self) -> Dict[str, Any]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
         Normally you'd need one. But in the case of GANs or similar you might have multiple.
@@ -361,10 +431,12 @@ class GazeModule(LightningModule):
             raise NotImplementedError("Unknown solver : " + self.hparams.solver.name)
         
         def warm_start_and_cosine_annealing(epoch):
+            lr_scale_min = 0.01
             if epoch < self.hparams.solver.warmup_epochs:
                 lr = (epoch+1) / self.hparams.solver.warmup_epochs
             else:
-                lr = 0.5 * (1. + math.cos(math.pi * ((epoch+1) - self.hparams.solver.warmup_epochs) / (self.trainer.max_epochs - self.hparams.solver.warmup_epochs )))
+                lr = lr_scale_min + 0.5 *(1-lr_scale_min)*(1. + math.cos(math.pi * ((epoch+1) - self.hparams.solver.warmup_epochs) \
+                                                                         / (self.trainer.max_epochs - self.hparams.solver.warmup_epochs )))
             return lr
 
         if(self.hparams.solver.scheduler == "cosine"):

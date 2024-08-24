@@ -1,0 +1,5 @@
+{
+    "experiment": ["gaze360_follow"],
+    "++model.solver.lr": [0.0008,0.0005, 0.0002],
+    "++logger.wandb.group": [ "gaze360_follow_v3"]
+}

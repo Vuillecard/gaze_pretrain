@@ -9,15 +9,15 @@ defaults:
 
 model_checkpoint:
   dirpath: ${paths.output_dir}/checkpoints
-  filename: "epoch_{epoch:03d}"
+  filename: "best_epoch_{epoch:03d}"
   monitor: "val/acc"
   mode: "max"
-  save_last: True
   auto_insert_metric_name: False
 
 
 model_checkpoint_last:
   dirpath: ${paths.output_dir}/checkpoints
+  filename: "last"
   save_last: True
   every_n_epochs: 1
   

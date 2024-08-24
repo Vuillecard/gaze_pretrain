@@ -1,0 +1,6 @@
+{
+    "experiment": ["gaze360_spherical_headsize"],
+    "++model.loss.beta": [0.05,0.1,0.5,1,2,5,10],
+    "++model.solver.lr": [0.0003],
+    "++logger.wandb.group": [ "Gaze3_cart_pinball_arcoss_v2"]
+}

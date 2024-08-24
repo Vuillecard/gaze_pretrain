@@ -1,0 +1,3 @@
+# Run some loss experiment
+experiment: [finetuning]
+++logger.wandb.group: [ "finetuning"]

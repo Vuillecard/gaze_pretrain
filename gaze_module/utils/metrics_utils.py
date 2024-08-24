@@ -3,6 +3,7 @@ import math
 import numpy as np
 import torch
 from scipy.optimize import linear_sum_assignment
+from torch.nn import functional as F
 
 
 def spherical2cartesial(x):
@@ -26,12 +27,16 @@ def compute_angular_error(input, target):
     input_cart = spherical2cartesial(input)
     target_cart = spherical2cartesial(target)
 
-    input_cart = input_cart.view(-1, 3, 1)
-    target_cart = target_cart.view(-1, 1, 3)
-    output_dot = torch.bmm(target_cart, input_cart)
-    output_dot = output_dot.view(-1)
-    output_dot = torch.acos(output_dot)
-    output_dot = 180 / math.pi * torch.sum(output_dot)
+    sim = F.cosine_similarity(input_cart, target_cart, dim=1, eps=1e-10)
+    
+    output_dot = torch.acos(sim).sum()*180/math.pi
+
+    # input_cart = input_cart.view(-1, 3, 1)
+    # target_cart = target_cart.view(-1, 1, 3)
+    # output_dot = torch.bmm(target_cart, input_cart)
+    # output_dot = output_dot.view(-1)
+    # output_dot = torch.acos(output_dot)
+    # output_dot = 180 / math.pi * torch.sum(output_dot)
 
     return output_dot
 
@@ -39,12 +44,21 @@ def compute_angular_error_cartesian(input, target):
     input_cart = torch.nn.functional.normalize(input, p=2, dim=1)
     target_cart = torch.nn.functional.normalize(target, p=2, dim=1)
 
-    input_cart = input_cart.view(-1, 3, 1)
-    target_cart = target_cart.view(-1, 1, 3)
-    output_dot = torch.bmm(target_cart, input_cart)
-    output_dot = output_dot.view(-1)
-    output_dot = torch.acos(output_dot)
-    output_dot = 180 / math.pi * torch.sum(output_dot)
+    sim = F.cosine_similarity(input_cart, target_cart, dim=1, eps=1e-10)
+    
+    # handle the case when acos is not defined
+    acos_sim = torch.acos(sim)
+    acos_sim[sim >= (1.0 - 1e-8)] = 0
+    acos_sim[sim <= (-1.0 + 1e-8)] = math.pi
+    
+    output_dot = acos_sim.sum()*180/math.pi
+    
+    # input_cart = input_cart.view(-1, 3, 1)
+    # target_cart = target_cart.view(-1, 1, 3)
+    # output_dot = torch.bmm(target_cart, input_cart)
+    # output_dot = output_dot.view(-1)
+    # output_dot = torch.acos(output_dot)
+    # output_dot = 180 / math.pi * torch.sum(output_dot)
 
     return output_dot
 
@@ -321,3 +335,38 @@ if __name__ == "__main__":
     x_cart = spherical2cartesial(x_spherical)
 
     print(x, x_cart)
+
+
+# main 
+if __name__ == "__main__":
+    # test the conversion functions
+    x = torch.randn(100, 3)
+    x = torch.nn.functional.normalize(x, p=2, dim=1)
+    x_spherical = cartesial2spherical(x)
+    x_cart = spherical2cartesial(x_spherical)
+
+    assert torch.allclose(x, x_cart, atol=1e-6), "Conversion failed"
+
+    x = [[0.5,0.5,-1]]
+    x = torch.nn.functional.normalize(torch.tensor(x), p=2, dim=1)
+    x_spherical = cartesial2spherical(x)
+    x_spherical = x_spherical*torch.tensor([-1,1])
+    x_cart = spherical2cartesial(x_spherical)
+
+    print(x, x_cart)
+
+    # test the angular error function
+    x = torch.randn(100, 3)
+    x = torch.nn.functional.normalize(x, p=2, dim=1)
+    y = torch.randn(100, 3)
+    y = torch.nn.functional.normalize(y, p=2, dim=1)
+
+    #print(compute_angular_error(x, y))
+    print(compute_angular_error_cartesian(x, y)/100)
+    print(compute_angular_error(x, y)/100)
+
+    x = [[1,0.,]]
+    y = [[0.,1.]]
+    x = torch.tensor(x)
+    y = torch.tensor(y)
+    print(compute_angular_error_cartesian(x, y))

@@ -1,7 +1,7 @@
 import math
 import warnings
 import pickle
-
+import os 
 import numpy as np
 import scipy
 import torch
@@ -14,6 +14,7 @@ from gaze_module.utils.metrics_utils import (
     compute_angular_error_cartesian,
     spherical2cartesial
 )
+from gaze_module.data.components.gaze_dataset import DATASET_ID
 
 # filter the warnings about ill-defined P,R and F1
 warnings.filterwarnings(action="ignore", category=UndefinedMetricWarning)
@@ -92,6 +93,7 @@ def compute_gaze_results(exp_results,mode_angular = 'spherical'):
 
     with open('/idiap/temp/pvuillecard/projects/face_analyser/datasets/Gaze360/gaze360_image_database.pkl', 'rb') as f:
         image_db_gaze360 = pickle.load(f)
+    
     # include the face information in the prediction 
     for k in image_db_gaze360.keys():
         face_info = image_db_gaze360[k]['other']['person_face_bbox']
@@ -142,6 +144,25 @@ def compute_gaze_results(exp_results,mode_angular = 'spherical'):
             size = 240
         image_db_mpsgaze[k]['face_size'] = size
 
+
+    with open('/idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/gaze360_model/run_2024-06-19_11-13-54/logs/train/runs/run_0/prediction/pred_gaze_gazefollow.pkl', 'rb') as f:
+        image_db_follow = pickle.load(f)
+
+    for k in image_db_follow.keys():
+        gaze_dir = image_db_follow[k]['gaze_vector_pred']
+        # compute the angular error with center (0,0,-1)
+        angular_error = 180/np.pi*np.arccos(np.dot(gaze_dir, np.array([0, 0, -1])) / (np.linalg.norm(gaze_dir) * np.linalg.norm(np.array([0, 0, -1]))))
+        image_db_follow[k]['angular_error'] = angular_error
+    
+    with open('/idiap/temp/pvuillecard/projects/face_analyser/datasets/Eyediap/eyediap_image_database.pkl', 'rb') as f:
+        image_db_eyediap = pickle.load(f)
+    
+    # with open('/idiap/temp/pvuillecard/projects/face_analyser/datasets/MPIIFace/mpiiface_database.pkl', 'rb') as f:
+    #     image_db_mpiiface = pickle.load(f)
+    #################################################################################################
+    # Gaze360 TESTING
+    #################################################################################################
+
     pred_gaze360 = {}
     for i in range(len(exp_results['frame_id'])):
         if exp_results['data_id'][i] == 1:
@@ -152,10 +173,13 @@ def compute_gaze_results(exp_results,mode_angular = 'spherical'):
     if len(pred_gaze360) > 0:
         # gaze 360 error
         angular_error_full = AngularError(mode = mode_angular)
+        angular_error_back = AngularError(mode = mode_angular)
         angular_error_180 = AngularError(mode = mode_angular)
         angular_error_20 = AngularError(mode = mode_angular)
         angular_error_det = AngularError(mode = mode_angular)
-    
+        angular_error_det_180 = AngularError(mode = mode_angular)
+        angular_error_det_20 = AngularError(mode = mode_angular)
+
         for k in pred_gaze360.keys():
 
             angular_error_full.update(torch.from_numpy(pred_gaze360[k]['frame_gt']).unsqueeze(0),
@@ -163,19 +187,82 @@ def compute_gaze_results(exp_results,mode_angular = 'spherical'):
             if image_db_gaze360[k]['angular_error'] <= 90:
                 angular_error_180.update(torch.from_numpy(pred_gaze360[k]['frame_gt']).unsqueeze(0),
                                             torch.from_numpy(pred_gaze360[k]['frame_pred']).unsqueeze(0))
+            if image_db_gaze360[k]['angular_error'] > 90:
+                angular_error_back.update(torch.from_numpy(pred_gaze360[k]['frame_gt']).unsqueeze(0),
+                                            torch.from_numpy(pred_gaze360[k]['frame_pred']).unsqueeze(0))
             if image_db_gaze360[k]['angular_error'] <= 20:
                 angular_error_20.update(torch.from_numpy(pred_gaze360[k]['frame_gt']).unsqueeze(0),
                                             torch.from_numpy(pred_gaze360[k]['frame_pred']).unsqueeze(0))
             if image_db_gaze360[k]['face_info'] == 1:
                 angular_error_det.update(torch.from_numpy(pred_gaze360[k]['frame_gt']).unsqueeze(0),
                                             torch.from_numpy(pred_gaze360[k]['frame_pred']).unsqueeze(0))
-
-        
+                if image_db_gaze360[k]['angular_error'] <= 90:
+                    angular_error_det_180.update(torch.from_numpy(pred_gaze360[k]['frame_gt']).unsqueeze(0),
+                                                torch.from_numpy(pred_gaze360[k]['frame_pred']).unsqueeze(0))
+                if image_db_gaze360[k]['angular_error'] <= 20:
+                    angular_error_det_20.update(torch.from_numpy(pred_gaze360[k]['frame_gt']).unsqueeze(0),
+                                                torch.from_numpy(pred_gaze360[k]['frame_pred']).unsqueeze(0))
+                
         angular_error_all["Gaze360_full"] = angular_error_full.compute()
+        angular_error_all["Gaze360_back"] = angular_error_back.compute()
         angular_error_all["Gaze360_180"] = angular_error_180.compute()
         angular_error_all["Gaze360_20"] = angular_error_20.compute()
         angular_error_all["Gaze360_face"] = angular_error_det.compute()
-  
+        angular_error_all["Gaze360_face_180"] = angular_error_det_180.compute()
+        angular_error_all["Gaze360_face_20"] = angular_error_det_20.compute()
+
+    pred_gaze360video = {}
+    for i in range(len(exp_results['frame_id'])):
+        if exp_results['data_id'][i] == 7:
+            pred_gaze360video[f'clip_{exp_results["video_id"][i]:08d}_frame_{exp_results["frame_id"][i]:08d}'] = {
+                'frame_pred': exp_results['frame_pred'][i],
+                'frame_gt': exp_results['frame_gt'][i]
+            }
+    if len(pred_gaze360video) > 0:
+        # gaze 360 error
+        angular_error_full = AngularError(mode = mode_angular)
+        angular_error_back = AngularError(mode = mode_angular)
+        angular_error_180 = AngularError(mode = mode_angular)
+        angular_error_20 = AngularError(mode = mode_angular)
+        angular_error_det = AngularError(mode = mode_angular)
+        angular_error_det_180 = AngularError(mode = mode_angular)
+        angular_error_det_20 = AngularError(mode = mode_angular)
+
+        for k in pred_gaze360video.keys():
+
+            angular_error_full.update(torch.from_numpy(pred_gaze360video[k]['frame_gt']).unsqueeze(0),
+                                torch.from_numpy(pred_gaze360video[k]['frame_pred']).unsqueeze(0))
+            if image_db_gaze360[k]['angular_error'] <= 90:
+                angular_error_180.update(torch.from_numpy(pred_gaze360video[k]['frame_gt']).unsqueeze(0),
+                                            torch.from_numpy(pred_gaze360video[k]['frame_pred']).unsqueeze(0))
+            if image_db_gaze360[k]['angular_error'] > 90:
+                angular_error_back.update(torch.from_numpy(pred_gaze360video[k]['frame_gt']).unsqueeze(0),
+                                            torch.from_numpy(pred_gaze360video[k]['frame_pred']).unsqueeze(0))
+            if image_db_gaze360[k]['angular_error'] <= 20:
+                angular_error_20.update(torch.from_numpy(pred_gaze360video[k]['frame_gt']).unsqueeze(0),
+                                            torch.from_numpy(pred_gaze360video[k]['frame_pred']).unsqueeze(0))
+            if image_db_gaze360[k]['face_info'] == 1:
+                angular_error_det.update(torch.from_numpy(pred_gaze360video[k]['frame_gt']).unsqueeze(0),
+                                            torch.from_numpy(pred_gaze360video[k]['frame_pred']).unsqueeze(0))
+                if image_db_gaze360[k]['angular_error'] <= 90:
+                    angular_error_det_180.update(torch.from_numpy(pred_gaze360video[k]['frame_gt']).unsqueeze(0),
+                                                torch.from_numpy(pred_gaze360video[k]['frame_pred']).unsqueeze(0))
+                if image_db_gaze360[k]['angular_error'] <= 20:
+                    angular_error_det_20.update(torch.from_numpy(pred_gaze360video[k]['frame_gt']).unsqueeze(0),
+                                                torch.from_numpy(pred_gaze360video[k]['frame_pred']).unsqueeze(0))
+                
+        angular_error_all["Gaze360video_full"] = angular_error_full.compute()
+        angular_error_all["Gaze360video_back"] = angular_error_back.compute()
+        angular_error_all["Gaze360video_180"] = angular_error_180.compute()
+        angular_error_all["Gaze360video_20"] = angular_error_20.compute()
+        angular_error_all["Gaze360video_face"] = angular_error_det.compute()
+        angular_error_all["Gaze360video_face_180"] = angular_error_det_180.compute()
+        angular_error_all["Gaze360video_face_20"] = angular_error_det_20.compute()
+    
+
+    #################################################################################################
+    # GFIE TESTING
+    #################################################################################################
     pred_gifie = {}
     for i in range(len(exp_results['frame_id'])):
         if exp_results['data_id'][i] == 2:
@@ -201,9 +288,71 @@ def compute_gaze_results(exp_results,mode_angular = 'spherical'):
             
         angular_error_all["GFIE_full"] = angular_error_full.compute()
         angular_error_all["GFIE_180"] = angular_error_180.compute()
-        angular_error_all["GFIE_20"] = angular_error_20.compute()
+    
+    pred_gifievideo = {}
+    for i in range(len(exp_results['frame_id'])):
+        if exp_results['data_id'][i] == 8:
+            pred_gifievideo[f'clip_{exp_results["video_id"][i]:08d}_frame_{exp_results["frame_id"][i]:08d}'] = {
+                'frame_pred': exp_results['frame_pred'][i],
+                'frame_gt': exp_results['frame_gt'][i]
+            }
+    angular_error_full = AngularError(mode = mode_angular)
+    angular_error_180 = AngularError(mode = mode_angular)
+    angular_error_20 = AngularError(mode = mode_angular)
+    
+    if len(pred_gifievideo) > 0:
+        for k in pred_gifievideo.keys():
 
+            angular_error_full.update(torch.from_numpy(pred_gifievideo[k]['frame_gt']).unsqueeze(0),
+                                torch.from_numpy(pred_gifievideo[k]['frame_pred']).unsqueeze(0))
+            if image_db_gfie[k]['angular_error'] <= 90:
+                angular_error_180.update(torch.from_numpy(pred_gifievideo[k]['frame_gt']).unsqueeze(0),
+                                            torch.from_numpy(pred_gifievideo[k]['frame_pred']).unsqueeze(0))
+            if image_db_gfie[k]['angular_error'] <= 20:
+                angular_error_20.update(torch.from_numpy(pred_gifievideo[k]['frame_gt']).unsqueeze(0),
+                                            torch.from_numpy(pred_gifievideo[k]['frame_pred']).unsqueeze(0))
+            
+        angular_error_all["GFIEvideo_full"] = angular_error_full.compute()
+        angular_error_all["GFIEvideo_180"] = angular_error_180.compute()
+        
+    #################################################################################################
+    # GazeFollow TESTING
+    #################################################################################################
+    pred_follow = {}
+    for i in range(len(exp_results['frame_id'])):
+        if exp_results['data_id'][i] == 4:
+            pred_follow[f'frame_{exp_results["frame_id"][i]:08d}_face_{exp_results["person_id"][i]:08d}'] = {
+                'frame_pred': exp_results['frame_pred'][i],
+                'frame_gt': exp_results['frame_gt'][i]
+            }
+    angular_error_full = AngularError(mode = mode_angular)
+    angular_error_180 = AngularError(mode = mode_angular)
+    angular_error_20 = AngularError(mode = mode_angular)
+    angular_error_2D = AngularError(mode = mode_angular)
+    
+    if len(pred_follow) > 0:
+        for k in pred_follow.keys():
+            
+            angular_error_2D.update(torch.from_numpy(pred_follow[k]['frame_gt']).unsqueeze(0)[:,:2],
+                                torch.from_numpy(pred_follow[k]['frame_pred']).unsqueeze(0)[:,:2])
+            
+            angular_error_full.update(torch.from_numpy(pred_follow[k]['frame_gt']).unsqueeze(0),
+                                torch.from_numpy(pred_follow[k]['frame_pred']).unsqueeze(0))
+            if image_db_follow[k]['angular_error'] <= 90:
+                angular_error_180.update(torch.from_numpy(pred_follow[k]['frame_gt']).unsqueeze(0),
+                                            torch.from_numpy(pred_follow[k]['frame_pred']).unsqueeze(0))
+            if image_db_follow[k]['angular_error'] <= 20:
+                angular_error_20.update(torch.from_numpy(pred_follow[k]['frame_gt']).unsqueeze(0),
+                                            torch.from_numpy(pred_follow[k]['frame_pred']).unsqueeze(0))
+            
+        angular_error_all["GazeFollow_full"] = angular_error_full.compute()
+        angular_error_all["GazeFollow_180"] = angular_error_180.compute()
+        angular_error_all["GazeFollow_20"] = angular_error_20.compute()
+        angular_error_all["GazeFollow_2D"] = angular_error_2D.compute()
 
+    #################################################################################################
+    # MPSGAZE TESTING
+    #################################################################################################
     pred_mpsgaze = {}
     for i in range(len(exp_results['frame_id'])):
         if exp_results['data_id'][i] == 3:
@@ -227,8 +376,136 @@ def compute_gaze_results(exp_results,mode_angular = 'spherical'):
     for k in angular_error.keys():
         angular_error_all[f"MPSGaze_{k}"] = angular_error[k].compute()
     
+    #################################################################################################
+    # Eyediap TESTING
+    #################################################################################################
+    
+    pred_eyediap = {}
+    for i in range(len(exp_results['frame_id'])):
+        if exp_results['data_id'][i] == 6:
+            pred_eyediap[f'clip_{exp_results["video_id"][i]:08d}_frame_{exp_results["frame_id"][i]:08d}'] = {
+                'frame_pred': exp_results['frame_pred'][i],
+                'frame_gt': exp_results['frame_gt'][i]
+            }
+    
+    angular_error_ft_M = AngularError(mode = mode_angular)
+    angular_error_ft_S = AngularError(mode = mode_angular)
+    angular_error_ft_all = AngularError(mode = mode_angular)
+
+    angular_error_cs = AngularError(mode = mode_angular)
+
+    for k in pred_eyediap.keys():
+        
+        if image_db_eyediap[k]['task'] == 'FT':
+            angular_error_ft_all.update(torch.from_numpy(pred_eyediap[k]['frame_gt']).unsqueeze(0),
+                            torch.from_numpy(pred_eyediap[k]['frame_pred']).unsqueeze(0))
+            if image_db_eyediap[k]['static'] == 'M':
+                angular_error_ft_M.update(torch.from_numpy(pred_eyediap[k]['frame_gt']).unsqueeze(0),
+                            torch.from_numpy(pred_eyediap[k]['frame_pred']).unsqueeze(0))
+            else:
+                angular_error_ft_S.update(torch.from_numpy(pred_eyediap[k]['frame_gt']).unsqueeze(0),
+                            torch.from_numpy(pred_eyediap[k]['frame_pred']).unsqueeze(0))
+        else:
+            angular_error_cs.update(torch.from_numpy(pred_eyediap[k]['frame_gt']).unsqueeze(0),
+                            torch.from_numpy(pred_eyediap[k]['frame_pred']).unsqueeze(0))
+            
+    angular_error_all[f"Eyediap_FT"] = angular_error_ft_all.compute()
+    angular_error_all[f"Eyediap_CS"] = angular_error_cs.compute()
+    angular_error_all[f"Eyediap_FT_M"] = angular_error_ft_M.compute()
+    angular_error_all[f"Eyediap_FT_S"] = angular_error_ft_S.compute()
+    
+    pred_eyediap_video = {}
+    for i in range(len(exp_results['frame_id'])):
+        if exp_results['data_id'][i] == 11:
+            pred_eyediap_video[f'clip_{exp_results["video_id"][i]:08d}_frame_{exp_results["frame_id"][i]:08d}'] = {
+                'frame_pred': exp_results['frame_pred'][i],
+                'frame_gt': exp_results['frame_gt'][i]
+            }
+    
+    angular_error_ft_M = AngularError(mode = mode_angular)
+    angular_error_ft_S = AngularError(mode = mode_angular)
+    angular_error_ft_all = AngularError(mode = mode_angular)
+
+    angular_error_cs = AngularError(mode = mode_angular)
+
+    for k in pred_eyediap_video.keys():
+        
+        if image_db_eyediap[k]['task'] == 'FT':
+            angular_error_ft_all.update(torch.from_numpy(pred_eyediap_video[k]['frame_gt']).unsqueeze(0),
+                            torch.from_numpy(pred_eyediap_video[k]['frame_pred']).unsqueeze(0))
+            if image_db_eyediap[k]['static'] == 'M':
+                angular_error_ft_M.update(torch.from_numpy(pred_eyediap_video[k]['frame_gt']).unsqueeze(0),
+                            torch.from_numpy(pred_eyediap_video[k]['frame_pred']).unsqueeze(0))
+            else:
+                angular_error_ft_S.update(torch.from_numpy(pred_eyediap_video[k]['frame_gt']).unsqueeze(0),
+                            torch.from_numpy(pred_eyediap_video[k]['frame_pred']).unsqueeze(0))
+        else:
+            angular_error_cs.update(torch.from_numpy(pred_eyediap_video[k]['frame_gt']).unsqueeze(0),
+                            torch.from_numpy(pred_eyediap_video[k]['frame_pred']).unsqueeze(0))
+            
+    angular_error_all[f"Eyediapvideo_FT"] = angular_error_ft_all.compute()
+    angular_error_all[f"Eyediapvideo_CS"] = angular_error_cs.compute()
+    angular_error_all[f"Eyediapvideo_FT_M"] = angular_error_ft_M.compute()
+    angular_error_all[f"Eyediapvideo_FT_S"] = angular_error_ft_S.compute()
+
+
+    #################################################################################################
+    # MPIIFace TESTING
+    #################################################################################################
+    
+    pred_mpiiface = {}
+    for i in range(len(exp_results['frame_id'])):
+        if exp_results['data_id'][i] == 12:
+            pred_mpiiface[f'clip_{exp_results["video_id"][i]:08d}_frame_{exp_results["frame_id"][i]:08d}'] = {
+                'frame_pred': exp_results['frame_pred'][i],
+                'frame_gt': exp_results['frame_gt'][i]
+            }
+
+    angular_error = AngularError(mode = mode_angular)
+
+    for k in pred_mpiiface.keys():
+        angular_error.update(torch.from_numpy(pred_mpiiface[k]['frame_gt']).unsqueeze(0),
+                            torch.from_numpy(pred_mpiiface[k]['frame_pred']).unsqueeze(0))
+            
+    angular_error_all[f"MPIIFace"] = angular_error.compute()
+ 
     # round the results 
     for k in angular_error_all.keys():
         angular_error_all[k] = round(angular_error_all[k].item(),2)
     
     return angular_error_all
+
+
+def save_pred_gaze_results(exp_results,output_dir,mode_angular = 'spherical'):
+
+    k = 2 if mode_angular == 'spherical' else 3
+    exp_results['frame_pred'] = exp_results['frame_pred'].view(-1, k).numpy()
+    exp_results['frame_gt'] = exp_results['frame_gt'].view(-1, k).numpy()
+    exp_results['frame_id'] = exp_results['frame_id'].view(-1).numpy()
+    exp_results['video_id'] = exp_results['video_id'].view(-1).numpy()
+    exp_results['person_id'] = exp_results['person_id'].view(-1).numpy()
+    exp_results['data_id'] = exp_results['data_id'].view(-1).numpy()
+
+    # get unique data_id 
+    data_ids = np.unique(exp_results['data_id'])
+
+    for data_id in data_ids:
+        data_save = {}
+        for i in range(len(exp_results['frame_id'])):
+            if exp_results['data_id'][i] == data_id:
+                if data_id in [1,2,6,11]:
+                    data_save[f'clip_{exp_results["video_id"][i]:08d}_frame_{exp_results["frame_id"][i]:08d}'] = {
+                        'gaze_vector_pred': exp_results['frame_pred'][i]
+                    }
+                elif data_id in [3,4]:
+                    data_save[f'frame_{exp_results["frame_id"][i]:08d}_face_{exp_results["person_id"][i]:08d}'] = {
+                        'gaze_vector_pred': exp_results['frame_pred'][i]
+                    }
+                elif data_id in [5,9,10]:
+                    data_save[f'clip_{exp_results["video_id"][i]:08d}_frame_{exp_results["frame_id"][i]:08d}_face_{exp_results["person_id"][i]:08d}'] = {
+                        'gaze_vector_pred': exp_results['frame_pred'][i]
+                    }
+
+        with open(os.path.join(output_dir,f'pred_gaze_{DATASET_ID[data_id]}.pkl'), 'wb') as f:
+            pickle.dump(data_save, f)
+    

@@ -1,0 +1,5 @@
+{
+    "experiment": ["gaze360_models"],
+    "++extras.bbox_scale_ratio": [0.1],
+    "++logger.wandb.group": [ "gaze360_models"]
+}

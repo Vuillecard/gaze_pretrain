@@ -14,22 +14,23 @@ solver:
 
 net:
   _target_: gaze_module.models.components.gaze_models.GazeNet
-  encoder: 
-    _target_: gaze_module.models.components.gaze_models.ResNet
-    model_name: "resnet18"
-    pretrained: True
-  head: linear
-  mode: ${model.mode_angular}
+  encoder: ${extras.resenet18}
+  head:
+    _target_: gaze_module.models.components.gaze_models.HeadCartesian
+    _partial_: true
+  activation:
+    _target_: torch.nn.ReLU
 
 loss:
-  _target_: gaze_module.models.losses.GazeLoss
-  main: null
-    #_target_: gaze_module.models.losses.AngularArcossLoss
-  add: 
-    _target_: gaze_module.models.losses.PinBallLoss
-    mode: ${model.mode_angular}
+  # _target_: gaze_module.models.losses.GazeLoss
+  # main: null
+  #   #_target_: gaze_module.models.losses.AngularArcossLoss
+  # add: 
+  #   _target_: gaze_module.models.losses.PinBallLoss
+  #   mode: ${model.mode_angular}
+  _target_: gaze_module.models.losses.VMFDistributionLoss
 
-mode_angular: spherical
+mode_angular: cartesian
 
 # compile model for faster training with pytorch 2.0
 compile: false

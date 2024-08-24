@@ -9,6 +9,8 @@ datasets_test:
   - ${extras.gaze360}
   - ${extras.gfie}
   - ${extras.mpsgaze}
+  - ${extras.eyediap}
+  - ${extras.gazefollow_pseudo}
 
 train_transform:
   _target_: gaze_module.data.components.transforms.Compose
@@ -16,13 +18,28 @@ train_transform:
     - _target_: gaze_module.data.components.transforms.BboxReshape
       square: True
       ratio: ${extras.bbox_scale_ratio}
-    - _target_: gaze_module.data.components.transforms.BboxRandomJitter
-      jitter_ratio: 0.1
+    # - _target_: gaze_module.data.components.transforms.BboxRandomJitter
+    #   jitter_ratio: 0.1
     - _target_: gaze_module.data.components.transforms.ToImage
     - _target_: gaze_module.data.components.transforms.CropRandomResize
-      output_size: ${extras.head_resolution}
+      output_size: ${model.net.encoder.head_size}
+      scale: [0.9,1]
+      ratio: [0.9,1.1]
     # - _target_: gaze_module.data.components.transforms.HorizontalFlip
+    # - _target_: gaze_module.data.components.transforms.ColorJitter
+    #   brightness: [0.5, 1.5]
+    #   contrast: [0.5, 1.5]
+    #   saturation: [0.0, 1.5]
+    #   hue: null
+    #   p: 0.5
+    # - _target_: gaze_module.data.components.transforms.RandomGaussianBlur
+    #   radius: 7
+    #   sigma: [0.2, 2.0]
+    #   p: 0.5
     - _target_: gaze_module.data.components.transforms.ToTensor
+    - _target_: gaze_module.data.components.transforms.Normalize
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
 
 test_transform:
   _target_: gaze_module.data.components.transforms.Compose
@@ -32,10 +49,13 @@ test_transform:
       ratio: ${extras.bbox_scale_ratio}
     - _target_: gaze_module.data.components.transforms.ToImage
     - _target_: gaze_module.data.components.transforms.Crop
-      output_size: ${extras.head_resolution}
+      output_size: ${model.net.encoder.head_size}
     - _target_: gaze_module.data.components.transforms.ToTensor
+    - _target_: gaze_module.data.components.transforms.Normalize
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
 
 sampling_dataset: mean
 batch_size: 80 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
 num_workers: 2
-data_to_cluster: False
+data_to_cluster: True

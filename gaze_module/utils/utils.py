@@ -1,13 +1,38 @@
+from logging import config
 import warnings
+import os 
+import yaml
+
 from importlib.util import find_spec
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from gaze_module.utils import pylogger, rich_utils
 
 log = pylogger.RankedLogger(__name__, rank_zero_only=True)
 
+
+def load_resolve_config(cfg: DictConfig) -> Dict:
+    output_dir = os.path.dirname(os.path.dirname(cfg.ckpt_path))
+
+    # load config
+    with open(output_dir +'/config_resolved.yaml') as f:
+        config_resolved = yaml.load(f, Loader=yaml.FullLoader)
+    return config_resolved
+    
+def save_resolve_config(cfg: DictConfig,) -> None:
+    """Saves the resolved config to the output directory.
+
+    It is useful for reproducing the experiment later and evaluation and prediction
+    """
+    cfg_resolve = OmegaConf.to_container(cfg, resolve=True)
+   
+    # save config
+    output_path = cfg_resolve["paths"]["output_dir"]
+    save_path = os.path.join( f"{output_path}/config_resolved.yaml" )
+    with open(save_path, "w") as file:
+        yaml.dump(cfg_resolve, file)
 
 def extras(cfg: DictConfig) -> None:
     """Applies optional utilities before the task is started.

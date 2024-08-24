@@ -1,0 +1,16 @@
+Gaze360: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/omnivore/run_2024-07-03_12-50-08/logs/train/runs/run_0/checkpoints/best_epoch_033.ckpt
+Gaze360V: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/omnivore/run_2024-07-03_14-25-02/logs/train/runs/run_0/checkpoints/best_epoch_031.ckpt
+Gaze360_Gaze360V: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-10_11-10-56/logs/train/runs/run_0/checkpoints/best_epoch_025.ckpt
+
+Gaze360I_V_GF: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-11_16-08-57/logs/train/runs/run_0/checkpoints/best_epoch_007.ckpt
+Gaze360I_V_GF_MPS: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-11_16-09-58/logs/train/runs/run_0/checkpoints/best_epoch_027.ckpt
+# GFIEV_GFIE: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-09_18-33-27/logs/train/runs/run_0/checkpoints/best_epoch_013.ckpt
+# GFIEV_GFIE_MPS: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-09_18-34-09/logs/train/runs/run_0/checkpoints/best_epoch_029.ckpt
+# GFIEV_GFIE_MPS_GF: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-10_11-00-36/logs/train/runs/run_0/checkpoints/best_epoch_033.ckpt
+
+#GFIEV: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-04_17-41-31/logs/train/runs/run_0/checkpoints/best_epoch_017.ckpt
+#GFIEV_GF: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-04_23-42-08/logs/train/runs/run_0/checkpoints/last.ckpt
+#GFIEV_MPS: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-05_17-49-15/logs/train/runs/run_0/checkpoints/best_epoch_042.ckpt
+#GFIEV_MPS_GF: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-07_10-59-07/logs/train/runs/run_0/checkpoints/best_epoch_043.ckpt
+#Gaze360V_GF: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-04_17-42-47/logs/train/runs/run_0/checkpoints/best_epoch_033.ckpt
+#Gaze360V_GF_MPS: /idiap/temp/pvuillecard/projects/gaze_pretrain/logs/experiments/generalize/run_2024-07-04_17-43-42/logs/train/runs/run_0/checkpoints/best_epoch_018.ckpt

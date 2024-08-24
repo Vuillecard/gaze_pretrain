@@ -1,0 +1,3 @@
+# Run some loss experiment
+experiment: [generalization_omnivore]
+#++logger.wandb.group: [ "generalization"]

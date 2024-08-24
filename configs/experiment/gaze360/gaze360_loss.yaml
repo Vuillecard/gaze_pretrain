@@ -1,0 +1,81 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: gaze_combined
+  - override /model: gazenet
+  - override /callbacks: default
+  - override /trainer: gpu
+  - override /logger: wandb
+  - override /extras: default
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["gaze360", "GazeTR"]
+
+seed: 12345
+trainer:
+  min_epochs: 10
+  max_epochs: 30
+  gradient_clip_val: 1
+  # debug 
+  # max_epochs: 5
+  # overfit_batches: 3
+  # limit_test_batches: 10
+  
+
+callbacks:
+
+  model_checkpoint:
+    monitor: "val/angular_all"
+    mode: "min"
+  
+  early_stopping: 
+    monitor: "val/angular_all"
+    patience: 10
+    mode: "min"
+
+model:
+  solver:
+    lr: 0.0001
+    weight_decay: 0.01
+    layer_decay: null
+    warmup_epochs: 5
+    scheduler: "cosine"
+    apply_linear_scaling: True
+  
+  net:
+    _target_: gaze_module.models.components.gaze_models.GazeNet
+    encoder: ${extras.resnet18} # resnet18, resnet50, swin_v2_t, inception_v3
+    head:
+      _target_: gaze_module.models.components.gaze_models.HeadCartesian
+      _partial_: true
+    activation:
+      _target_: torch.nn.ReLU
+
+  loss:
+    #_target_: gaze_module.models.losses.CosineGazeLoss
+    _target_: gaze_module.models.losses.VMFDistributionLoss
+
+  mode_angular: cartesian
+
+data:
+  datasets_train:
+    - ${extras.gaze360}
+  
+  batch_size: 120 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
+  num_workers: 10
+  # batch_size: 120 # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
+  # num_workers: 10
+  data_to_cluster: False
+
+logger:
+  wandb:
+    tags: ${tags}
+    group: "Gaze3_loss"
+  aim:
+    experiment: "gaze static resnet spherical to cartesian and cosine loss"
+

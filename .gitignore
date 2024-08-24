@@ -154,6 +154,7 @@ configs/local/default.yaml
 /data/
 /logs/
 .env
-
+/notebooks/paper_images/
+/notebooks/results/
 # Aim logging
 .aim
