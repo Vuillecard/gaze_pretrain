@@ -10,6 +10,7 @@ from gaze_module.models.resnets.resnet import (
     resnet101,
     resnet152
 )
+from gaze_module.models.marlin.marlin_net import MarlinEncoder
 import math
 from torchvision.models import get_model
 
@@ -45,6 +46,34 @@ class ResNet(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+class MarlinPretrainEncoder(nn.Module):
+    def __init__(self, model_name: str, n_frames: int = 16, out_dim: int = 768):
+        super(MarlinPretrainEncoder, self).__init__()
+
+        self.marlin = MarlinEncoder.load_pretrain_marlin(model_name, n_frames=n_frames)
+        self.output_dim = self.marlin.embed_dim
+        self.head_out = nn.Linear(self.output_dim, out_dim)
+        # layer norm 
+        self.norm = nn.LayerNorm(self.output_dim)
+    def forward(self, x): 
+        # should be even number of frames
+        b, t, c, h, w = x.size()        
+        assert t % 2 == 0, f"Expected even number of frames, got {t}"
+
+        x = einops.rearrange(x, "b t c h w -> b c t h w")      
+        x = self.marlin.extract_features(x )
+
+        # x = einops.rearrange(x[:, 2:],"b (nt nh nw) d -> b nt (nh nw) d", nh = 14, nw = 14)
+        # x = x[:, x.shape[1]//2] # b n d 
+        # x = x.mean(dim=1) # b d
+        
+        x = x[:,2:].mean(dim=1) # b d
+
+        x = self.norm(x)
+        x = self.head_out(x)
+        
+        return x
+    
 class TemporalEncoder(nn.Module):
 
     def __init__(self
@@ -53,19 +82,27 @@ class TemporalEncoder(nn.Module):
         super(TemporalEncoder, self).__init__()
         self.input_size = input_size
         self.img_feature_dim = 256  # the dimension of the CNN feature to represent each frame
-        self.output_size = 2*self.img_feature_dim # because of bidirectional LSTM
+        self.output_size = self.img_feature_dim # because of bidirectional LSTM
 
         # The LSTM layer
+        self.linear = nn.Linear(self.input_size, self.img_feature_dim)
         self.lstm = nn.LSTM(self.img_feature_dim, self.img_feature_dim, bidirectional=True, num_layers=2, batch_first=True)
+        self.head_out = nn.Linear(self.img_feature_dim*2, self.output_size)
 
     def forward(self, input):
 
-        b,t,d = input.size()
+        B,T,D = input.size()
+        
+        if D != self.img_feature_dim:
+            # we need to first embed the input to the img_feature_dim
+            input = einops.rearrange(input, 'b t d -> (b t) d')
+            input = self.linear(input)
+            input = einops.rearrange(input, '(b t) d -> b t d' , b=B, t=T)
 
-        base_out = base_out.view(input.size(0),7,self.img_feature_dim)
-
-        lstm_out, _ = self.lstm(base_out)
-        lstm_out = lstm_out[:,t//2,:]
+        #base_out = base_out.view(input.size(0),7,self.img_feature_dim)
+        lstm_out, _ = self.lstm(input)
+        lstm_out = lstm_out[:,T//2,:]
+        lstm_out = self.head_out(lstm_out)
         
         return lstm_out
 
@@ -113,10 +150,18 @@ class TorchvisionEncoder(nn.Module):
             self.model.fc1 = nn.Linear(512, 768)
             self.model.fc2 = nn.Identity()
             self.output_size = 768
+        
+        elif model_name == "marlin":
+            self.model = MarlinPretrainEncoder("marlin_vit_small_ytf", n_frames=6,out_dim=768)
+            self.output_size = 768
+
+        elif model_name =="videoSwin":
+            self.model = get_model("swin3d_t", weights="DEFAULT")
+            self.model.head = nn.Linear(self.model.num_features, 768)
+            self.output_size = 768
 
     def forward(self, x):
         return self.model(x)
-
 
 class LinearHead(nn.Module):
     def __init__(self, in_features, out_features):
@@ -209,40 +254,6 @@ class GazeNet(nn.Module):
         encoder: nn.Module,
         head : partial,
         activation: nn.Module = nn.Identity(),
-        temporal_encoder: partial = None,
-        ):
-        super(GazeNet, self).__init__()
-        self.encoder = encoder
-        if temporal_encoder is not None:
-            self.temporal_encoder = temporal_encoder(input_size=encoder.output_size)
-            self.head = head(in_features= self.temporal_encoder.output_size)
-        else:
-            self.head = head(in_features= encoder.output_size)
-        
-        self.activation = activation
-
-    def forward(self, x, data_id):
-        # x => B, T, C, H, W
-        assert x.dim() == 5
-        x = einops.rearrange(x, 'b t c h w -> b c t h w')
-        if x.size(2) == 1:
-            x = x.squeeze(2)
-        
-        x = self.encoder(x)
-        x = self.activation(x)
-        
-        x_dict = self.head(x)
-
-        return x_dict
-
-# Baseline model for gaze estimation 
-class BaseGazeNet(nn.Module):
-
-    def __init__(
-        self, 
-        encoder: nn.Module,
-        head : partial,
-        activation: nn.Module = nn.Identity(),
         ):
         super(GazeNet, self).__init__()
         self.encoder = encoder
@@ -258,10 +269,137 @@ class BaseGazeNet(nn.Module):
         
         x = self.encoder(x)
         x = self.activation(x)
+        
         x_dict = self.head(x)
 
         return x_dict
+
+class GazeNetVideo(nn.Module):
+
+    def __init__(
+        self, 
+        encoder: nn.Module,
+        head : partial,
+        activation: nn.Module = nn.Identity(),
+        rearrange: bool = False,
+        ):
+        super(GazeNetVideo, self).__init__()
+        self.encoder = encoder
+        self.head = head(in_features= encoder.output_size)
+        self.activation = activation
+        self.rearrange = rearrange
+
+    def forward(self, x, data_id):
+        # x => B, T, C, H, W
+        B,T,C,H,W = x.size()
+        assert x.dim() == 5
+        #duplicate the last frame to have even temporal dimension
+        if T == 1:
+            # we duplicate the frame to have a temporal dimension
+            # mainly for testing use case
+            x = x.repeat(1, 7, 1, 1, 1)
+            B,T,C,H,W = x.size()
+
+        if T % 2 != 0:
+            x = x[:,:-1]
+            B,T,C,H,W = x.size()
+        
+        if self.rearrange:
+            x = einops.rearrange(x, 'b t c h w -> b c t h w')
+        
+        x = self.encoder(x)
+        x = self.activation(x)
+        
+        x_dict = self.head(x)
+
+        return x_dict
+
+
+class GazeNetTemporal(nn.Module):
+
+    def __init__(
+        self, 
+        encoder: nn.Module,
+        head : partial,
+        temporal_encoder: partial,
+        activation: nn.Module = nn.Identity(),
+        
+        ):
+        super(GazeNetTemporal, self).__init__()
+        self.encoder = encoder
+        self.temporal_encoder = temporal_encoder(input_size=encoder.output_size)
+        self.head = head(in_features= self.temporal_encoder.output_size)
+        self.activation = activation
+
+    def forward(self, x, data_id):
+        # x => B, T, C, H, W
+        B,T,C,H,W = x.size()
+        assert x.dim() == 5
+        if T == 1:
+            # we duplicate the frame to have a temporal dimension
+            # mainly for testing use case
+            x = x.repeat(1, 7, 1, 1, 1)
+            B,T,C,H,W = x.size()
+
+        x = einops.rearrange(x, 'b t c h w -> (b t) c h w')
+        x = self.encoder(x)
+
+        x = einops.rearrange(x, '(b t) d -> b t d' , b=B, t=T)
+        x = self.temporal_encoder(x)
+
+        x = self.activation(x)
+        x_dict = self.head(x)
+
+        return x_dict
+
+class GazeNetBaseline(nn.Module):
+
+    def __init__(
+        self, 
+        encoder: nn.Module,
+        head : partial,
+        temporal_encoder: partial,
+        activation: nn.Module = nn.Identity(),
+        shared : bool = False,
+        ):
+        super(GazeNetBaseline, self).__init__()
+        self.encoder = encoder
+        self.temporal_encoder = temporal_encoder(input_size=256)
+        self.head = head(in_features= self.temporal_encoder.output_size)
+        self.head_video = head(in_features= self.temporal_encoder.output_size)
+        self.adapter = nn.Linear(encoder.output_size, 256)
+        self.activation = activation
+        self.shared = shared
+
+    def forward(self, x, data_id):
+        # x => B, T, C, H, W
+        B,T,C,H,W = x.size()
+        assert x.dim() == 5
+
+        x = einops.rearrange(x, 'b t c h w -> (b t) c h w')
+        x = self.encoder(x)
+        x = self.activation(x)
+        x = self.adapter(x) # (b*t) x 256
+
+        if T > 1:
+            x = einops.rearrange(x, '(b t) d -> b t d' , b=B, t=T)
+            x = self.temporal_encoder(x)
+
+        # x is bxd=256
+        if self.shared:
+            x = self.activation(x)
+            x_dict = self.head(x)
+        else:
+            if T == 1:
+                x = self.activation(x)
+                x_dict = self.head(x)
+            else:
+                x = self.activation(x)
+                x_dict = self.head_video(x)
+
+        return x_dict
     
+
 
 
     

@@ -1,0 +1,3 @@
+# Run some loss experiment
+experiment: [generalization_baseline_multi]
+#++logger.wandb.group: [ "generalization"]

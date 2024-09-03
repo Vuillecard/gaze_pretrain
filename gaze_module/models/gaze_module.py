@@ -104,7 +104,6 @@ class GazeModule(LightningModule):
         self.mode_angular = mode_angular
         self.train_angular = AngularError(mode=self.mode_angular)
 
-        
         self.val_angular = nn.ModuleDict({
             'all': AngularError(mode=self.mode_angular),
             'gaze360': AngularError(mode=self.mode_angular),
@@ -191,8 +190,9 @@ class GazeModule(LightningModule):
         else:
             raise ValueError(f"Invalid mode: {self.mode_angular}")
         
-        loss = self.criterion(output, target)
+        loss = self.criterion(output, target, data_id)
         pred = output["cartesian"] if "cartesian" in output.keys() else output["spherical"]
+
         return loss, pred, target
         
 

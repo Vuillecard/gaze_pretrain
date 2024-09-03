@@ -122,6 +122,26 @@ gazefollow_pseudo_omnivore_360_360v:
     - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
       location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_omnivoreV_gaze360_gaze360v.pkl
 
+gazefollow_pseudo_baselineswin_360_360v: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_baselineswin_gaze360_gaze360v.pkl
+
+gazefollow_pseudo_omnivore_360_360v_mps: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_360_360v_mps.pkl
+
 childplay:
   _target_: gaze_module.data.components.gaze_dataset.ChildPlayImage
   _partial_: true
@@ -223,3 +243,123 @@ omnivore:
   model_name: "omnivore"
   pretrained: True
   head_size: 224
+
+marlin: 
+  _target_: gaze_module.models.components.gaze_models.TorchvisionEncoder
+  model_name: "marlin"
+  pretrained: True
+  head_size: 224
+
+videoswin: 
+  _target_: gaze_module.models.components.gaze_models.TorchvisionEncoder
+  model_name: "videoSwin"
+  pretrained: True
+  head_size: 224
+
+videoswin_model: 
+  _target_: gaze_module.models.components.gaze_models.GazeNetVideo
+  encoder: ${extras.videoswin} # resnet18, resnet50, swin_v2_t, inception_v3
+  head:
+    _target_: gaze_module.models.components.gaze_models.HeadCartesian
+    _partial_: true
+  activation:
+    _target_: torch.nn.ReLU
+  rearrange : True
+
+marlin_model: 
+  _target_: gaze_module.models.components.gaze_models.GazeNetVideo
+  encoder: ${extras.marlin} # resnet18, resnet50, swin_v2_t, inception_v3
+  head:
+    _target_: gaze_module.models.components.gaze_models.HeadCartesian
+    _partial_: true
+  activation:
+    _target_: torch.nn.ReLU
+
+resnet18_model:
+    _target_: gaze_module.models.components.gaze_models.GazeNet
+    encoder: ${extras.resnet18} # resnet18, resnet50, swin_v2_t, inception_v3
+    head:
+      _target_: gaze_module.models.components.gaze_models.HeadCartesian
+      _partial_: true
+    activation:
+      _target_: torch.nn.ReLU
+
+resnet18_temporal:
+    _target_: gaze_module.models.components.gaze_models.GazeNetTemporal
+    encoder: ${extras.resnet18} # resnet18, resnet50, swin_v2_t, inception_v3
+    head:
+      _target_: gaze_module.models.components.gaze_models.HeadCartesian
+      _partial_: true
+    temporal_encoder:
+      _target_: gaze_module.models.components.gaze_models.TemporalEncoder
+      _partial_: true
+    activation:
+      _target_: torch.nn.ReLU
+
+resnet50_model:
+    _target_: gaze_module.models.components.gaze_models.GazeNet
+    encoder: ${extras.resnet50} # resnet18, resnet50, swin_v2_t, inception_v3
+    head:
+      _target_: gaze_module.models.components.gaze_models.HeadCartesian
+      _partial_: true
+    activation:
+      _target_: torch.nn.ReLU
+
+resnet50_temporal:
+    _target_: gaze_module.models.components.gaze_models.GazeNetTemporal
+    encoder: ${extras.resnet50} # resnet18, resnet50, swin_v2_t, inception_v3
+    head:
+      _target_: gaze_module.models.components.gaze_models.HeadCartesian
+      _partial_: true
+    temporal_encoder:
+      _target_: gaze_module.models.components.gaze_models.TemporalEncoder
+      _partial_: true
+    activation:
+      _target_: torch.nn.ReLU
+
+swin_model:
+    _target_: gaze_module.models.components.gaze_models.GazeNet
+    encoder: ${extras.swin_v2_t} # resnet18, resnet50, swin_v2_t, inception_v3
+    head:
+      _target_: gaze_module.models.components.gaze_models.HeadCartesian
+      _partial_: true
+    activation:
+      _target_: torch.nn.ReLU
+
+swin_temporal:
+    _target_: gaze_module.models.components.gaze_models.GazeNetTemporal
+    encoder: ${extras.swin_v2_t} # resnet18, resnet50, swin_v2_t, inception_v3
+    head:
+      _target_: gaze_module.models.components.gaze_models.HeadCartesian
+      _partial_: true
+    temporal_encoder:
+      _target_: gaze_module.models.components.gaze_models.TemporalEncoder
+      _partial_: true
+    activation:
+      _target_: torch.nn.ReLU
+
+swin_baseline: 
+    _target_: gaze_module.models.components.gaze_models.GazeNetBaseline
+    encoder: ${extras.swin_v2_t} # resnet18, resnet50, swin_v2_t, inception_v3
+    head:
+      _target_: gaze_module.models.components.gaze_models.HeadCartesian
+      _partial_: true
+    temporal_encoder:
+      _target_: gaze_module.models.components.gaze_models.TemporalEncoder
+      _partial_: true
+    activation:
+      _target_: torch.nn.ReLU
+    shared : True
+
+resnet50_baseline: 
+    _target_: gaze_module.models.components.gaze_models.GazeNetBaseline
+    encoder: ${extras.resnet50} # resnet18, resnet50, swin_v2_t, inception_v3
+    head:
+      _target_: gaze_module.models.components.gaze_models.HeadCartesian
+      _partial_: true
+    temporal_encoder:
+      _target_: gaze_module.models.components.gaze_models.TemporalEncoder
+      _partial_: true
+    activation:
+      _target_: torch.nn.ReLU
+    shared : True
