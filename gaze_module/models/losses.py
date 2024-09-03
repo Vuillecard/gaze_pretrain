@@ -6,15 +6,25 @@ from gaze_module.utils.metrics_utils import cartesial2spherical, spherical2carte
 import torch.nn.functional as F
 
 class AngularArcossLoss(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, compute_only_2d = False):
         super(AngularArcossLoss, self).__init__()
+        self.compute_only_2d = compute_only_2d
 
-    def forward(self, output, target):
+    def forward(self, output, target, data_id = None):
         # normalize vectors
-        target_v = F.normalize(target, p=2, dim=1, eps=1e-8)
-
+        if  self.compute_only_2d and data_id == 4:
+            # apply only to 2d data
+            target_v = F.normalize(target[:,:2], p=2, dim=1, eps=1e-8)
+        else: 
+            target_v = F.normalize(target, p=2, dim=1, eps=1e-8)
+      
         if "cartesian" in output.keys():
-            output_v = F.normalize(output["cartesian"], p=2, dim=1, eps=1e-8)
+            
+            if  self.compute_only_2d and data_id == 4:
+                output_v = F.normalize(output["cartesian"][:,:2], p=2, dim=1, eps=1e-8)
+            else:
+                output_v = F.normalize(output["cartesian"], p=2, dim=1, eps=1e-8)
+
         elif "spherical" in output.keys():
             output_v = spherical2cartesial(output["spherical"])
             output_v = F.normalize(output_v, p=2, dim=1, eps=1e-8)

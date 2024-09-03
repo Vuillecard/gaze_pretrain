@@ -62,7 +62,10 @@ class BboxReshape(object):
         
         sizes = sizes * (1 + self.ratio)
         bbox_xmin = bbox_x_middle - (sizes[:,0:1] / 2)
-        bbox_ymin = bbox_xymin[:, 1:2] - ((sizes[:,1:2]*self.ratio)*0.07) # 5% of the height to make sure the top of the head is included
+        if self.ratio > 0.0:
+            bbox_ymin = bbox_xymin[:, 1:2] - ((sizes[:,1:2]*self.ratio)*0.07) # 7% of the height to make sure the top of the head is included
+        else:
+            bbox_ymin = bbox_xymin[:, 1:2] - ((sizes[:,1:2]*self.ratio))
         
         bbox_new = torch.cat([bbox_xmin, bbox_ymin, sizes ], 1)
         
