@@ -135,7 +135,7 @@ tags: ["trained_gfie_mps_gf_gaze360",omnivore,data_augmentation]
 logger:
   wandb:
     tags: ${tags}
-    group: "run_ablation_headcrop"
+    group: "run_ablation_headcrop_v2"
     name: "omnivore_360_360v"
   aim:
     experiment: "generalization ablation pseudo omnivore"

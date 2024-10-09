@@ -12,7 +12,7 @@ class AngularArcossLoss(torch.nn.Module):
 
     def forward(self, output, target, data_id = None):
         # normalize vectors
-        if  self.compute_only_2d and data_id == 4:
+        if  self.compute_only_2d and data_id in [4,9,10]:
             # apply only to 2d data
             target_v = F.normalize(target[:,:2], p=2, dim=1, eps=1e-8)
         else: 
@@ -20,7 +20,7 @@ class AngularArcossLoss(torch.nn.Module):
       
         if "cartesian" in output.keys():
             
-            if  self.compute_only_2d and data_id == 4:
+            if self.compute_only_2d and data_id in [4,9,10]:
                 output_v = F.normalize(output["cartesian"][:,:2], p=2, dim=1, eps=1e-8)
             else:
                 output_v = F.normalize(output["cartesian"], p=2, dim=1, eps=1e-8)

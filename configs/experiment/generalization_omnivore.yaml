@@ -20,7 +20,7 @@ trainer:
   min_epochs: 15
   max_epochs: 50
   gradient_clip_val: 1
-  # accumulate_grad_batches: 3
+  accumulate_grad_batches: 3
   # precision: 16 # speed up training by using 16-bit precision
   # # debug 
   # max_epochs: 7
@@ -29,12 +29,14 @@ trainer:
   
 callbacks:
   model_checkpoint:
-    monitor: "val/angular_gaze360video" # angular_gaze360 angular_gaze360video
+    # monitor: "val/angular_gaze360video" # angular_gaze360 angular_gaze360video
+    monitor: "val/angular_gfie" # angular_gaze360 angular_gaze360video
     mode: "min"
-    
+
   early_stopping: 
-    monitor: "val/angular_gaze360video"
-    patience: 10
+    # monitor: "val/angular_gaze360video" # angular_gaze360 angular_gaze360video
+    monitor: "val/angular_gfie"
+    patience: 7
     mode: "min"
 
 model:
@@ -66,9 +68,9 @@ data:
   datasets_train:
     # - ${extras.gaze360video}
     # - ${extras.gaze360}
-    # - ${extras.gfie}
+    - ${extras.gfie}
     # - ${extras.gfievideo}
-    - ${extras.mpsgaze}
+    # - ${extras.mpsgaze}
     # - ${extras.vat_video_pseudo_omni_360_360v}
     # - ${extras.vat_pseudo_omni_360_360v}
     # - ${extras.gazefollow_pseudo_omnivore_gfie_gfiev_mps}
@@ -132,7 +134,7 @@ tags: ["trained_gfie_mps_gf_gaze360",omnivore,data_augmentation]
 logger:
   wandb:
     tags: ${tags}
-    group: "run_ablation"
-    name: "omnivore_MPS"
+    group: "run_ablation_v2"
+    name: "omnivore_GFIE"
   aim:
     experiment: "generalization ablation pseudo omnivore"

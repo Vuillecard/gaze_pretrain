@@ -122,6 +122,16 @@ gazefollow_pseudo_omnivore_360_360v:
     - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
       location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_omnivoreV_gaze360_gaze360v.pkl
 
+gazefollow_pseudo_omnivore_360_360v_mps: 
+  _target_: gaze_module.data.components.gaze_dataset.GazeFollowImage
+  _partial_: true
+  image_db_path: ${paths.data_dir}/Gazefollow/gazefollow_image_database.pkl
+  sample_path: ${paths.data_dir}/Gazefollow/gazefollow_file.csv
+  head_bbox_name: null
+  additonal_data:
+    - _target_: gaze_module.data.components.gaze_dataset.GazeAnnotation
+      location: /idiap/temp/pvuillecard/projects/face_analyser/datasets/Gazefollow/annotations/gaze_pseudo_360_360v_mps.pkl
+
 childplay:
   _target_: gaze_module.data.components.gaze_dataset.ChildPlayImage
   _partial_: true
